@@ -584,7 +584,20 @@ function renderNotation() {
   box.appendChild(renderLine(app.root, 0));
   // Wheeling through a long line is no use if the move you are on has scrolled
   // out of the list.
-  box.querySelector(".ply.current")?.scrollIntoView({ block: "nearest" });
+  revealInBox(box, box.querySelector(".ply.current"));
+}
+
+/* Scroll `element` into view inside `box`, and move nothing else.
+ *
+ * scrollIntoView would do this, but it walks up every scrollable ancestor as
+ * well - so on a phone, where the list sits in the page rather than in a
+ * column of its own, every move dragged the whole page off the board. */
+function revealInBox(box, element) {
+  if (!element) return;
+  const frame = box.getBoundingClientRect();
+  const item = element.getBoundingClientRect();
+  if (item.top < frame.top) box.scrollTop -= frame.top - item.top;
+  else if (item.bottom > frame.bottom) box.scrollTop += item.bottom - frame.bottom;
 }
 
 function moveNumber(index) {

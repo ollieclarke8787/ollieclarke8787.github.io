@@ -86,16 +86,42 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .field.checkbox input { width: auto; }
 
 /* ---------- layout ---------- */
+/* Three blocks: the board, the move tree, and the text and buttons that go
+   with the line. On a wide screen the tree takes a column of its own and the
+   other two stack beside it. */
 main {
   display: grid;
   grid-template-columns: min-content minmax(280px, 360px);
+  grid-template-areas:
+    "board panel"
+    "text  panel";
   gap: 22px; padding: 22px; align-items: start;
   max-width: 1180px; margin: 0 auto;
 }
-@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+.board-side { grid-area: board; }
+.panel { grid-area: panel; }
+.text-side { grid-area: text; }
 
-.board-side { display: flex; flex-direction: column; gap: 10px; width: var(--board-size); }
-@media (max-width: 900px) { .board-side { width: min(var(--board-size), 100%); } }
+/* Narrow enough and they stack, with the moves directly under the board -
+   putting them last would leave a phone scrolling past everything else to
+   find the line it is playing through. */
+@media (max-width: 900px) {
+  main {
+    grid-template-columns: 1fr;
+    grid-template-areas: "board" "panel" "text";
+  }
+}
+
+.board-side, .text-side {
+  display: flex; flex-direction: column; gap: 10px; width: var(--board-size);
+}
+@media (max-width: 900px) {
+  /* Stacked, all three want the board's width so the column has one edge. */
+  .board-side, .text-side, .panel { width: min(var(--board-size), 100%); }
+  /* The list is right under the board now, so it has to leave the buttons
+     below it somewhere to be. */
+  .moves-card .notation { max-height: 45vh; }
+}
 
 /* ---------- board ---------- */
 .board-wrap {

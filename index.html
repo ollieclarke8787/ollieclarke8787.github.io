@@ -109,46 +109,6 @@
     <div class="hand" id="hand-a"></div>
 
     <p class="status" id="status"></p>
-
-    <div class="controls">
-      <button id="new-game">New game</button>
-      <button id="back">&larr; Back</button>
-      <button id="forward">Forward &rarr;</button>
-      <button id="promote" title="Move this line up one level">Promote variation</button>
-      <button id="make-main" title="Make this the principal line">Make main line</button>
-      <button id="delete-branch">Delete from here</button>
-    </div>
-
-    <div class="card">
-      <h2>Position</h2>
-      <label class="field">FEN
-        <input id="fen" spellcheck="false">
-      </label>
-      <div class="row">
-        <button id="load-fen">Load FEN</button>
-        <button id="copy-fen">Copy</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Move list</h2>
-      <textarea id="movetext" rows="4" spellcheck="false"
-                placeholder="1. Kc3 Kd4 2. Kc4"></textarea>
-      <div class="row">
-        <button id="load-moves">Load moves</button>
-        <button id="copy-moves">Copy</button>
-      </div>
-      <label class="field checkbox with-variations">
-        <input type="checkbox" id="with-variations"> Include variations, in brackets
-      </label>
-      <p class="hint">
-        <code>Kc3</code> kitten &middot; <code>Cc3</code> cat &middot;
-        <code>a1&gt;Ce3</code> a1 graduates onto e3 &middot;
-        <code>=a1b1c1</code> that line graduates &middot; <code>#</code> wins
-      </p>
-    </div>
-
-    <p class="error" id="error" hidden></p>
   </section>
 
   <section class="panel">
@@ -196,6 +156,48 @@
       <h2>Choose a line to graduate</h2>
       <p class="hint">Hover to preview, click to graduate.</p>
       <ul class="options" id="graduation-options"></ul>
+    </div>
+  </section>
+
+  <section class="text-side">
+    <div class="controls">
+      <button id="new-game">New game</button>
+      <button id="back">&larr; Back</button>
+      <button id="forward">Forward &rarr;</button>
+      <button id="promote" title="Move this line up one level">Promote variation</button>
+      <button id="make-main" title="Make this the principal line">Make main line</button>
+      <button id="delete-branch">Delete from here</button>
+    </div>
+
+    <p class="error" id="error" hidden></p>
+
+    <div class="card">
+      <h2>Position</h2>
+      <label class="field">FEN
+        <input id="fen" spellcheck="false">
+      </label>
+      <div class="row">
+        <button id="load-fen">Load FEN</button>
+        <button id="copy-fen">Copy</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Move list</h2>
+      <textarea id="movetext" rows="4" spellcheck="false"
+                placeholder="1. Kc3 Kd4 2. Kc4"></textarea>
+      <div class="row">
+        <button id="load-moves">Load moves</button>
+        <button id="copy-moves">Copy</button>
+      </div>
+      <label class="field checkbox with-variations">
+        <input type="checkbox" id="with-variations"> Include variations, in brackets
+      </label>
+      <p class="hint">
+        <code>Kc3</code> kitten &middot; <code>Cc3</code> cat &middot;
+        <code>a1&gt;Ce3</code> a1 graduates onto e3 &middot;
+        <code>=a1b1c1</code> that line graduates &middot; <code>#</code> wins
+      </p>
     </div>
   </section>
 </main>
