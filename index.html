@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boop analysis board</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-board-theme="blue" data-piece-theme="shapes" data-coords="edge" data-highlight="behind" data-moves="indented">
+
+<header>
+  <h1>Boop</h1>
+
+  <div class="menus">
+    <div class="menu" id="menu-board">
+      <button class="menu-button" aria-expanded="false">Board</button>
+      <div class="menu-panel">
+        <label class="field">Theme
+          <select id="board-theme">
+            <option value="blue">Blue</option>
+            <option value="slate">Slate</option>
+            <option value="forest">Forest</option>
+            <option value="sand">Sand</option>
+          </select>
+        </label>
+        <label class="field">Lightness
+          <input type="range" id="board-light" min="-22" max="22" step="1" value="0">
+        </label>
+      </div>
+    </div>
+
+    <div class="menu" id="menu-pieces">
+      <button class="menu-button" aria-expanded="false">Pieces</button>
+      <div class="menu-panel">
+        <label class="field">Theme
+          <select id="piece-theme">
+            <option value="shapes">Triangle &amp; circle</option>
+            <option value="solid">Solid</option>
+            <option value="outline">Outline</option>
+          </select>
+        </label>
+        <label class="field">Orange (player a)
+          <input type="color" id="colour-a" value="#ee6a10">
+        </label>
+        <label class="field">Grey (player b)
+          <input type="color" id="colour-b" value="#4d5661">
+        </label>
+        <label class="field">Lightness
+          <input type="range" id="piece-light" min="-25" max="25" step="1" value="0">
+        </label>
+        <button class="reset-colours" id="reset-colours">Reset colours</button>
+      </div>
+    </div>
+
+    <div class="menu" id="menu-settings">
+      <button class="menu-button" aria-expanded="false" title="Settings">&#9881;</button>
+      <div class="menu-panel">
+        <label class="field">Coordinates
+          <select id="coords">
+            <option value="none">Invisible</option>
+            <option value="edge" selected>a&ndash;f, 1&ndash;6 at the edges</option>
+            <option value="square">In every square</option>
+          </select>
+        </label>
+        <label class="field">Variations in the move list
+          <select id="moves-format">
+            <option value="indented" selected>One per line, indented</option>
+            <option value="inline">Inline, in brackets</option>
+          </select>
+        </label>
+        <label class="field">Square highlighting
+          <select id="highlight">
+            <option value="behind" selected>Behind the pieces</option>
+            <option value="front">In front of the pieces</option>
+          </select>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="animate" checked> Animate booped pieces
+        </label>
+        <label class="field">Animation speed <span class="readout" id="speed-readout"></span>
+          <input type="range" id="speed" min="0.25" max="3" step="0.25" value="1">
+        </label>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="board-side">
+    <div class="hand" id="hand-b"></div>
+
+    <div class="board-area">
+      <div class="board-wrap" id="board-wrap">
+        <div class="ranks" id="ranks"></div>
+        <div class="board" id="board"></div>
+        <div class="files" id="files"></div>
+        <div class="resize" id="resize" title="Drag to resize the board"></div>
+      </div>
+
+      <div class="palette" id="palette" hidden>
+        <button class="tile" data-brush="a-kit" title="Orange kitten"></button>
+        <button class="tile" data-brush="a-cat" title="Orange cat"></button>
+        <button class="tile" data-brush="b-kit" title="Grey kitten"></button>
+        <button class="tile" data-brush="b-cat" title="Grey cat"></button>
+        <button class="tile erase" data-brush="delete" title="Remove pieces">&#10005;</button>
+      </div>
+    </div>
+
+    <div class="hand" id="hand-a"></div>
+
+    <p class="status" id="status"></p>
+
+    <div class="controls">
+      <button id="new-game">New game</button>
+      <button id="back">&larr; Back</button>
+      <button id="forward">Forward &rarr;</button>
+      <button id="promote" title="Move this line up one level">Promote variation</button>
+      <button id="make-main" title="Make this the principal line">Make main line</button>
+      <button id="delete-branch">Delete from here</button>
+    </div>
+
+    <div class="card">
+      <h2>Position</h2>
+      <label class="field">FEN
+        <input id="fen" spellcheck="false">
+      </label>
+      <div class="row">
+        <button id="load-fen">Load FEN</button>
+        <button id="copy-fen">Copy</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Move list</h2>
+      <textarea id="movetext" rows="4" spellcheck="false"
+                placeholder="1. Kc3 Kd4 2. Kc4"></textarea>
+      <div class="row">
+        <button id="load-moves">Load moves</button>
+        <button id="copy-moves">Copy</button>
+      </div>
+      <label class="field checkbox with-variations">
+        <input type="checkbox" id="with-variations"> Include variations, in brackets
+      </label>
+      <p class="hint">
+        <code>Kc3</code> kitten &middot; <code>Cc3</code> cat &middot;
+        <code>a1&gt;Ce3</code> a1 graduates onto e3 &middot;
+        <code>=a1b1c1</code> that line graduates &middot; <code>#</code> wins
+      </p>
+    </div>
+
+    <p class="error" id="error" hidden></p>
+  </section>
+
+  <section class="panel">
+    <div class="card" id="editor-card" hidden>
+      <h2>Board editor</h2>
+      <p class="hint">Pick a tile, then click squares. The cross removes pieces.</p>
+
+      <label class="field">To move
+        <select id="editor-turn">
+          <option value="a">Orange</option>
+          <option value="b">Grey</option>
+        </select>
+      </label>
+
+      <table class="hands-table">
+        <tr><th></th><th>Kittens</th><th>Cats</th><th>Total</th></tr>
+        <tr>
+          <th>Orange</th>
+          <td><input type="number" id="hand-a-kits" min="0" max="8" value="0"></td>
+          <td><input type="number" id="hand-a-cats" min="0" max="8" value="0"></td>
+          <td class="total" id="total-a">0/8</td>
+        </tr>
+        <tr>
+          <th>Grey</th>
+          <td><input type="number" id="hand-b-kits" min="0" max="8" value="0"></td>
+          <td><input type="number" id="hand-b-cats" min="0" max="8" value="0"></td>
+          <td class="total" id="total-b">0/8</td>
+        </tr>
+      </table>
+
+      <p class="error" id="editor-error" hidden></p>
+      <div class="row">
+        <button id="continue-here">Continue from here</button>
+        <button id="editor-clear">Clear board</button>
+        <button id="editor-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div class="card moves-card">
+      <h2>Moves</h2>
+      <div class="notation" id="notation"></div>
+    </div>
+
+    <div class="card" id="graduation-card" hidden>
+      <h2>Choose a line to graduate</h2>
+      <p class="hint">Hover to preview, click to graduate.</p>
+      <ul class="options" id="graduation-options"></ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <button id="toggle-editor">Board editor</button>
+  <span class="footer-hint" id="editor-hint">Set up any position, then continue from it.</span>
+</footer>
+
+<div class="picker" id="picker" hidden>
+  <button data-piece="kit"><span class="swatch kit"></span>Kitten</button>
+  <button data-piece="cat"><span class="swatch cat"></span>Cat</button>
+</div>
+
+<ul class="context" id="context" hidden>
+  <li data-action="promote">Promote variation</li>
+  <li data-action="make-main">Make main line</li>
+  <li data-action="delete">Delete from here</li>
+</ul>
+
+<script src="rules.js"></script>
+<script src="notation.js"></script>
+<script src="api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
