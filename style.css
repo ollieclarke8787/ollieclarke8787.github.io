@@ -1,0 +1,379 @@
+/* Colours are defined as HSL parts so the lightness sliders can shift a whole
+   theme without redefining it. Each theme sets hue/saturation/lightness, and
+   --board-shift / --piece-shift move the lightness up or down. */
+:root {
+  --board-shift: 0;
+  --piece-shift: 0;
+  --board-size: 440px;
+
+  /* Piece colours. These are the fallbacks; the colour pickers and the
+     lightness slider overwrite them from JavaScript, which is where hex from
+     an <input type="color"> gets turned into HSL so the slider can shift it.
+     A light board needs pieces that are vivid (orange) or dark (grey) - a
+     mid-tone grey on light blue is exactly the low-contrast case to avoid. */
+  --orange: hsl(22 92% 47%);
+  --orange-edge: hsl(22 92% 27%);
+  --grey: hsl(215 13% 34%);
+  --grey-edge: hsl(215 13% 16%);
+
+  --slide-ms: 200ms;
+
+  --ink: #16181d;
+  --muted: #6b7280;
+  --paper: #f6f7f9;
+  --card: #ffffff;
+  --line: #dde1e7;
+  --accent: #2f6fb0;
+  --danger: #b03a3a;
+}
+
+/* Board themes. The default blue is deliberately light so the pieces carry the
+   contrast rather than competing with the board. */
+[data-board-theme="blue"]   { --bh: 208; --bs: 62%; --bl: 78%; }
+[data-board-theme="slate"]  { --bh: 214; --bs: 14%; --bl: 76%; }
+[data-board-theme="forest"] { --bh: 120; --bs: 26%; --bl: 74%; }
+[data-board-theme="sand"]   { --bh: 36;  --bs: 46%; --bl: 79%; }
+
+body {
+  --board:     hsl(var(--bh) var(--bs) calc(var(--bl) + var(--board-shift) * 1%));
+  --board-alt: hsl(var(--bh) var(--bs) calc(var(--bl) + var(--board-shift) * 1% - 7%));
+  --frame:     hsl(var(--bh) calc(var(--bs) * 0.7) calc(var(--bl) + var(--board-shift) * 1% - 34%));
+  --mark:      hsl(var(--bh) var(--bs) calc(var(--bl) + var(--board-shift) * 1% + 14%));
+  --coord:     hsl(var(--bh) calc(var(--bs) * 0.6) calc(var(--bl) + var(--board-shift) * 1% - 40%));
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+/* ---------- header and menus ---------- */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line);
+  background: var(--card); position: relative; z-index: 30;
+}
+header h1 { margin: 0; font-size: 18px; letter-spacing: .02em; }
+.menus { display: flex; gap: 8px; }
+.menu { position: relative; }
+.menu-button {
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--card); cursor: pointer; font: inherit;
+}
+.menu-button:hover, .menu.open .menu-button { border-color: var(--accent); color: var(--accent); }
+.menu-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  min-width: 220px; padding: 12px; display: none;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.14);
+}
+.menu.open .menu-panel { display: block; }
+
+select, input, textarea, button { font: inherit; }
+select, textarea, input:not([type]) {
+  padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card); color: var(--ink); width: 100%;
+}
+textarea, input:not([type]) { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 13px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.field:last-child { margin-bottom: 0; }
+.field.checkbox { display: flex; align-items: center; gap: 7px; }
+.field.checkbox input { width: auto; }
+
+/* ---------- layout ---------- */
+main {
+  display: grid;
+  grid-template-columns: min-content minmax(280px, 360px);
+  gap: 22px; padding: 22px; align-items: start;
+  max-width: 1180px; margin: 0 auto;
+}
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+.board-side { display: flex; flex-direction: column; gap: 10px; width: var(--board-size); }
+@media (max-width: 900px) { .board-side { width: min(var(--board-size), 100%); } }
+
+/* ---------- board ---------- */
+.board-wrap {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  grid-template-rows: 1fr 20px;
+  gap: 3px;
+  width: var(--board-size);
+}
+[data-coords="none"] .ranks, [data-coords="none"] .files,
+[data-coords="square"] .ranks, [data-coords="square"] .files { visibility: hidden; }
+
+.board {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px;
+  padding: 9px; border-radius: 10px; background: var(--frame);
+  aspect-ratio: 1; width: 100%;
+}
+.ranks, .files { display: grid; gap: 3px; font-size: 11px; color: var(--muted); }
+.ranks { grid-template-rows: repeat(6, 1fr); padding: 9px 0; }
+.files { grid-column: 2; grid-template-columns: repeat(6, 1fr); padding: 0 9px; }
+.ranks span, .files span { display: grid; place-items: center; }
+
+.square {
+  position: relative; border: 0; padding: 0; cursor: pointer;
+  background: var(--board); border-radius: 5px; aspect-ratio: 1;
+  display: grid; place-items: center; transition: box-shadow .12s;
+}
+.square:nth-child(even) { background: var(--board-alt); }
+.square:disabled { cursor: default; opacity: 1; }
+
+/* Pieces sit above the square's own background and its inset rings. */
+.square .piece { position: relative; z-index: 1; }
+
+/* Square markings, in order of precedence.
+ *
+ * These selectors all have the same specificity, so which one wins on a square
+ * carrying several of them is decided by the order they appear here. Weakest
+ * first, strongest last:
+ *
+ *   source          one of your pieces could graduate
+ *   playable:hover  the pointer is over a square you may play
+ *   last            where the previous move landed
+ *   selected        the piece you have chosen to graduate
+ *   highlight       the line you are previewing before graduating it
+ *
+ * `highlight` has to come last. Completing a line usually means the square you
+ * just played is part of it, so that square carries `last` as well - and if
+ * `last` won, the one square that most needs to show which line you are about
+ * to take would be the one square that did not.
+ *
+ * Two ways of drawing them. Behind (the default): inset rings on the square
+ * itself, which paint above its background but below anything inside it, so a
+ * piece keeps exactly the colour it was given. In front: an overlay above the
+ * piece, more visible on a busy board but it tints what it covers.
+ */
+.square::after {
+  content: ""; position: absolute; inset: 0; border-radius: 5px;
+  pointer-events: none; z-index: 2; display: none;
+}
+.square.source { cursor: pointer; }
+
+/* --- behind --- */
+[data-highlight="behind"] .square.source { box-shadow: inset 0 0 0 2px var(--mark); }
+[data-highlight="behind"] .square.playable:hover { box-shadow: inset 0 0 0 3px var(--mark); }
+[data-highlight="behind"] .square.last { box-shadow: inset 0 0 0 3px var(--accent); }
+[data-highlight="behind"] .square.selected { box-shadow: inset 0 0 0 4px var(--accent); }
+[data-highlight="behind"] .square.highlight { box-shadow: inset 0 0 0 4px #f0b429; }
+
+/* --- in front --- */
+[data-highlight="front"] .square.source::after {
+  display: block; box-shadow: inset 0 0 0 2px var(--mark);
+}
+[data-highlight="front"] .square.playable:hover::after {
+  display: block; box-shadow: inset 0 0 0 3px var(--mark);
+}
+[data-highlight="front"] .square.last::after {
+  display: block; box-shadow: inset 0 0 0 3px var(--accent);
+}
+[data-highlight="front"] .square.selected::after {
+  display: block; box-shadow: inset 0 0 0 4px var(--accent);
+}
+[data-highlight="front"] .square.highlight::after {
+  display: block; box-shadow: inset 0 0 0 4px #f0b429; background: rgba(240, 180, 41, .38);
+}
+
+/* A dot marks where the cat may go on an empty-hand turn. It sits under the
+   piece, so the square the piece came from still reads as occupied. */
+.square.target::before {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: 28%; height: 28%; transform: translate(-50%, -50%);
+  border-radius: 50%; background: var(--accent); opacity: .55;
+  pointer-events: none; z-index: 0;
+}
+
+.coord {
+  position: absolute; left: 3px; top: 2px; font-size: 9px; line-height: 1;
+  color: var(--coord); pointer-events: none; display: none;
+}
+[data-coords="square"] .coord { display: block; }
+
+/* Drag the bottom-left corner to resize. */
+.resize {
+  position: absolute; right: -5px; bottom: 15px; width: 18px; height: 18px;
+  cursor: nwse-resize; border-radius: 4px;
+  background:
+    linear-gradient(-45deg, transparent 44%, var(--muted) 44%, var(--muted) 56%, transparent 56%),
+    linear-gradient(-45deg, transparent 64%, var(--muted) 64%, var(--muted) 76%, transparent 76%);
+  opacity: 0; transition: opacity .15s;
+}
+.board-wrap:hover .resize, .resize.dragging { opacity: .85; }
+
+/* ---------- pieces ---------- */
+.piece {
+  width: 74%; height: 74%; display: grid; place-items: center;
+  pointer-events: none;
+}
+.piece svg { width: 100%; height: 100%; overflow: visible; }
+.piece .body { stroke-width: 5; }
+.piece.a .body { fill: var(--orange); stroke: var(--orange-edge); }
+.piece.b .body { fill: var(--grey);   stroke: var(--grey-edge); }
+.piece.sliding { transition: transform var(--slide-ms) ease-out; }
+
+[data-piece-theme="shapes"] .piece.kit svg { width: 62%; height: 62%; }
+[data-piece-theme="solid"]   .piece .body { stroke: none; }
+[data-piece-theme="solid"]   .piece.kit svg { width: 58%; height: 58%; }
+[data-piece-theme="outline"] .piece .body { fill: transparent; stroke-width: 9; }
+
+/* ---------- hands ---------- */
+.hand {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; color: var(--muted); min-height: 26px;
+}
+.hand .turn {
+  width: 9px; height: 9px; border-radius: 50%; background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line); flex: none;
+}
+.hand.active .turn { background: var(--accent); box-shadow: 0 0 0 3px rgba(47,111,176,.22); }
+.hand .name { font-weight: 600; color: var(--muted); }
+.hand.active .name { color: var(--ink); }
+.hand .pool { display: flex; align-items: center; gap: 3px; }
+.hand .pool .piece { width: 18px; height: 18px; }
+
+.status { min-height: 20px; margin: 0; font-size: 13px; color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; gap: 7px; }
+button {
+  padding: 6px 11px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--card); cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+/* Squares are buttons too, and a square is disabled whenever it is not a legal
+   move - which includes every occupied square. Dimming those dimmed the pieces
+   sitting on them, so a piece set to pure red painted as a murky pink. */
+button:disabled:not(.square) { opacity: .4; cursor: default; }
+
+/* ---------- cards ---------- */
+.panel { display: flex; flex-direction: column; gap: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 13px; }
+.card h2 { margin: 0 0 9px; font-size: 12px; text-transform: uppercase;
+           letter-spacing: .06em; color: var(--muted); }
+.row { display: flex; gap: 8px; margin-top: 8px; }
+.hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.hint code { background: var(--paper); padding: 1px 4px; border-radius: 4px; }
+
+/* ---------- notation ---------- */
+.moves-card .notation { min-height: 120px; max-height: 460px; overflow-y: auto; }
+.notation {
+  font-family: ui-monospace, "Cascadia Code", monospace; font-size: 13px;
+  line-height: 1.9;
+}
+.notation .ply { padding: 1px 5px; border-radius: 5px; cursor: pointer; }
+.notation .ply:hover { background: var(--paper); }
+.notation .ply.current { background: var(--accent); color: #fff; }
+.notation .number { color: var(--muted); margin-right: 2px; }
+/* One variation per line, indented from the line it branches off, and indented
+   again for each level of nesting - the nesting comes from these blocks being
+   inside one another, so no depth counter is needed. */
+[data-moves="indented"] .notation .variation {
+  display: block;
+  margin: 2px 0 2px 14px; padding-left: 9px;
+  border-left: 2px solid var(--line); color: var(--muted); font-size: 12px;
+}
+[data-moves="indented"] .notation .variation .variation { border-left-color: var(--accent); opacity: .95; }
+
+/* Inline: run them into the text in brackets. */
+[data-moves="inline"] .notation .variation { color: var(--muted); }
+.notation .empty { color: var(--muted); font-style: italic; }
+
+.options { list-style: none; margin: 0; padding: 0; }
+.options li {
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px;
+  margin-bottom: 6px; cursor: pointer;
+  font-family: ui-monospace, "Cascadia Code", monospace; font-size: 13px;
+  display: flex; align-items: center; gap: 8px;
+}
+.options li:hover { border-color: var(--accent); background: var(--paper); }
+.options .kind { margin-left: auto; font-family: inherit; font-size: 11px; color: var(--muted); }
+
+.error { color: var(--danger); font-size: 13px; margin: 0; }
+
+/* ---------- floating bits ---------- */
+.picker, .context {
+  position: absolute; z-index: 50;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.picker { display: flex; gap: 6px; padding: 6px; }
+/* An explicit display beats the browser's [hidden] rule, so restate it. */
+.picker[hidden], .context[hidden] { display: none; }
+.picker button { display: flex; align-items: center; gap: 7px; }
+.swatch { width: 15px; height: 15px; display: inline-block; }
+.swatch { background: var(--swatch, var(--orange)); }
+.swatch.kit { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.swatch.cat { border-radius: 50%; }
+
+.context { list-style: none; margin: 0; padding: 5px; min-width: 168px; }
+.context li { padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.context li:hover { background: var(--paper); color: var(--accent); }
+.context li.disabled { opacity: .4; pointer-events: none; }
+
+input[type="color"] {
+  width: 100%; height: 30px; padding: 2px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--card);
+}
+.reset-colours { width: 100%; margin-top: 2px; }
+.readout { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.with-variations { margin-top: 9px; margin-bottom: 0; }
+
+/* ---------- board editor ---------- */
+.board-area { display: flex; align-items: flex-start; gap: 12px; }
+
+.palette { display: flex; flex-direction: column; gap: 7px; padding-top: 9px; }
+/* An explicit display beats the browser's [hidden] rule, so restate it -
+   without this the tiles stay beside the board in analysis mode. */
+.palette[hidden] { display: none; }
+.palette .tile {
+  width: 40px; height: 40px; padding: 0; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card);
+  display: grid; place-items: center; cursor: pointer;
+}
+.palette .tile:hover { border-color: var(--accent); }
+.palette .tile.active {
+  border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47, 111, 176, .22);
+}
+.palette .tile .piece { width: 26px; height: 26px; }
+.palette .tile.erase { font-size: 17px; color: var(--danger); }
+
+/* The board takes the whole column normally; with the palette beside it, it
+   has to give up the palette's width so the two together still fit. */
+.board-area .board-wrap { width: 100%; }
+body[data-editing="1"] .board-area .board-wrap { width: calc(100% - 52px); }
+
+.hands-table { width: 100%; border-collapse: collapse; font-size: 12px; color: var(--muted); }
+.hands-table th { font-weight: 600; text-align: left; padding: 3px 6px 3px 0; }
+.hands-table td { padding: 3px 6px 3px 0; }
+.hands-table input[type="number"] {
+  width: 56px; padding: 4px 6px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--card); color: var(--ink); font-size: 13px;
+}
+.hands-table .total { font-variant-numeric: tabular-nums; }
+.hands-table .total.wrong { color: var(--danger); font-weight: 600; }
+
+/* In the editor every square is clickable and the rules do not apply, so the
+   usual playable/last markings are meaningless. */
+body[data-editing="1"] .square { cursor: cell; }
+
+footer {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 22px 26px; max-width: 1180px; margin: 0 auto;
+  border-top: 1px solid var(--line);
+}
+.footer-hint { font-size: 12px; color: var(--muted); }
+
+/* The position a line starts from, when it is not the opening position. */
+.setup-tag {
+  display: block; margin-bottom: 7px; padding: 4px 7px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 6px;
+  font-size: 11px; color: var(--muted); word-break: break-all;
+}
+.setup-tag b { color: var(--ink); font-weight: 600; }
