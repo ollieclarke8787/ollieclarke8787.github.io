@@ -1018,6 +1018,46 @@ function wireMenus() {
   }
 }
 
+/* The two help pages live in the markup rather than being built here - they
+ * are prose, and prose belongs in HTML. */
+function wireHelp() {
+  const dialog = document.getElementById("help");
+  const title = document.getElementById("help-title");
+
+  const open = (id, heading) => {
+    let shown = null;
+    for (const article of dialog.querySelectorAll(".help-body")) {
+      article.hidden = article.id !== id;
+      if (!article.hidden) shown = article;
+    }
+    title.textContent = heading;
+    closeMenus();
+    dialog.showModal();
+    // Reopening it should start at the top, not where you left off reading.
+    shown.scrollTop = 0;
+  };
+
+  document.getElementById("show-rules").onclick =
+    () => open("help-rules", "The rules of Boop");
+  document.getElementById("show-guide").onclick =
+    () => open("help-guide", "Using this page");
+
+  // Esc closes it. A modal <dialog> is supposed to do this itself, over the
+  // browser's close-request path; closing it here too costs two lines and
+  // does not depend on that path.
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    dialog.close();
+  });
+
+  // The backdrop belongs to the dialog element, so a click that lands on the
+  // dialog itself rather than on anything inside it came from outside the box.
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+}
+
 function closeMenus() {
   document.querySelectorAll(".menu").forEach((menu) => {
     menu.classList.remove("open");
@@ -1030,6 +1070,7 @@ function closeMenus() {
 function main() {
   buildBoard();
   wireMenus();
+  wireHelp();
   wireResize();
   wireWheel();
 
@@ -1133,6 +1174,9 @@ function main() {
   document.addEventListener("keydown", (event) => {
     const target = event.target;
     if (target instanceof Element && target.matches("input, textarea, select")) return;
+    // While help is up the board's shortcuts are off: the arrows must not
+    // step a line you cannot see, and Esc belongs to the dialog.
+    if (document.getElementById("help").open) return;
     if (event.key === "ArrowLeft") back();
     if (event.key === "ArrowRight") forward();
     if (event.key === "Escape") {

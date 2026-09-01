@@ -82,6 +82,14 @@
         </label>
       </div>
     </div>
+
+    <div class="menu" id="menu-help">
+      <button class="menu-button" aria-expanded="false">Help</button>
+      <div class="menu-panel">
+        <button class="menu-item" id="show-rules">The rules of Boop</button>
+        <button class="menu-item" id="show-guide">Using this page</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -201,6 +209,240 @@
     </div>
   </section>
 </main>
+
+<dialog class="help" id="help">
+  <form method="dialog" class="help-head">
+    <h2 id="help-title"></h2>
+    <button class="help-close" title="Close" aria-label="Close">&#10005;</button>
+  </form>
+
+  <article class="help-body" id="help-rules" tabindex="0" hidden>
+    <p class="lede">
+      Boop is played on a 6&times;6 bed. You each start with eight kittens in
+      hand, and you win by getting three of your cats in a row. Orange places
+      first.
+    </p>
+
+    <h3>A turn</h3>
+    <p>
+      Place one piece from your hand on any empty square. That is the whole
+      turn: pieces already on the bed are never picked up and moved, they only
+      ever get pushed around by what you place.
+    </p>
+
+    <h3>Booping</h3>
+    <p>
+      The piece you place pushes &mdash; <em>boops</em> &mdash; every piece in
+      the eight squares around it one square directly away from itself. Yours
+      and your opponent's alike.
+    </p>
+    <ul>
+      <li>A piece only moves if the square it would land on is empty. If
+        anything is already there, it stays where it is.</li>
+      <li>A piece booped off the edge of the bed goes back to its owner's
+        hand.</li>
+      <li><strong>Kittens cannot boop cats.</strong> A kitten you place shoves
+        the kittens around it and leaves the cats standing. A cat boops
+        everything.</li>
+    </ul>
+    <p>
+      Every direction is worked out from the square you played, so a piece can
+      be booped at most once per turn, and no boop can open a gap for another.
+    </p>
+
+    <h3>Graduating</h3>
+    <p>
+      Once the booping has settled, look for three of <em>your</em> pieces in a
+      row &mdash; along a rank, a file or a diagonal, on adjacent squares. All
+      three come off the bed and go back into your hand <strong>as
+      cats</strong>, whether they were kittens, cats or a mix of the two.
+    </p>
+    <p>
+      It does not matter how the line came about: the piece you placed need not
+      be in it, and a row you shunt your own pieces into by booping counts just
+      the same. Only the player who has just placed can graduate, and if there
+      is a line, graduating is compulsory. Make two lines at once and you choose
+      which one goes.
+    </p>
+
+    <h3>Winning</h3>
+    <ul>
+      <li><strong>Three of your cats in a row</strong> wins on the spot. The
+        line is not graduated &mdash; the game is simply over.</li>
+      <li>Getting <strong>all eight of your pieces onto the bed as cats</strong>
+        also wins.</li>
+    </ul>
+
+    <h3>When your hand is empty</h3>
+    <p>
+      If all eight of your pieces are on the bed you have nothing left to place,
+      so your turn is a different thing: take one of your own pieces off the
+      bed, graduate it, and put it straight back down as a cat on any empty
+      square &mdash; including the one it has just left. It boops from there
+      like any other placement, and can complete a line like any other.
+    </p>
+
+    <h3>Where this board differs from the printed rules</h3>
+    <p>
+      Two known gaps, shared with the engine this board takes its rules from:
+    </p>
+    <ul>
+      <li>A line you shove <em>your opponent's</em> pieces into is not spotted.
+        Only the mover's own pieces are ever checked.</li>
+      <li>The empty-hand turn here lets you graduate a cat as well as a kitten;
+        the printed rules allow only a kitten.</li>
+    </ul>
+  </article>
+
+  <article class="help-body" id="help-guide" tabindex="0" hidden>
+    <p class="lede">
+      This is an analysis board, not an opponent. Nothing here plays against
+      you: you play both sides, branch wherever you like, and step back and
+      forth through what you have built.
+    </p>
+
+    <h3>Playing a move</h3>
+    <ul>
+      <li>Click an empty square to place a piece there.</li>
+      <li>If you hold both a kitten and a cat, a small picker appears in the
+        colour of the side to move. Otherwise the only piece you have goes
+        straight down.</li>
+      <li>A placement that completes one line graduates it for you. One that
+        completes <em>two</em> stops and lists them; hover an option to see that
+        line lit up on the board, and click to take it.</li>
+    </ul>
+
+    <h3>The empty-hand turn</h3>
+    <p>
+      When every one of your pieces is on the bed, the board asks in the order
+      the move happens:
+    </p>
+    <ol>
+      <li>Your pieces are ringed. Click the one to graduate &mdash; it takes a
+        heavier ring.</li>
+      <li>Every square the cat may go to is dotted, the square it came from
+        included. Click one to play the move.</li>
+    </ol>
+    <p>
+      Clicking a different piece of yours picks that one instead, and
+      <kbd>Esc</kbd> clears the selection.
+    </p>
+
+    <h3>Moving through the line</h3>
+    <p>
+      Click any move in the list to jump to it, use the left and right arrow
+      keys, or <strong>scroll the wheel over the board</strong> &mdash; up steps
+      back, down steps forward. The move you are on is highlighted, and the list
+      keeps it in view.
+    </p>
+
+    <h3>Variations</h3>
+    <p>
+      Play a move that differs from the one already recorded and the line
+      branches. Right-click a move &mdash; or use the buttons under the board
+      &mdash; for:
+    </p>
+    <ul>
+      <li><strong>Promote variation</strong> &mdash; move that line up one level
+        among its siblings.</li>
+      <li><strong>Make main line</strong> &mdash; make it the principal line,
+        demoting the rest by one and keeping their order.</li>
+      <li><strong>Delete from here</strong> &mdash; remove the line from that
+        move onward.</li>
+    </ul>
+    <p>
+      All three act on the point where the line diverges rather than on the move
+      you happen to be looking at, so promoting from deep inside a variation
+      does what you mean.
+    </p>
+
+    <h3>Position</h3>
+    <p>
+      The <strong>FEN</strong> box holds the position you are looking at. Copy
+      it out, or paste one in and press <strong>Load FEN</strong> to start a
+      fresh line from it.
+    </p>
+
+    <h3>Move list</h3>
+    <p>
+      The <strong>Move list</strong> box holds the line as text. It shows the
+      main line &mdash; whichever move comes first at each branch, which is what
+      <em>make main line</em> decides. Tick <strong>include variations</strong>
+      to add the branches in brackets, PGN-style:
+    </p>
+    <pre>1. Kc3 Kd4 2. Kc4 (2. Kb1 Kf6) (2. Ke5)</pre>
+    <p>
+      <strong>Load moves</strong> reads that back, variations and all, so
+      exported text pastes straight in and every branch stays clickable. A
+      bracketed group is an alternative to the move just played, so it branches
+      from the position <em>before</em> it.
+    </p>
+
+    <h4>Notation</h4>
+    <p>
+      Squares are named like a chessboard: files <strong>a</strong>&ndash;<strong>f</strong>
+      left to right, ranks <strong>1</strong>&ndash;<strong>6</strong> bottom to
+      top, so a1 is the bottom-left corner.
+    </p>
+    <table class="help-table">
+      <tr><td><code>Kc3</code></td><td>place a kitten on c3</td></tr>
+      <tr><td><code>Cc3</code></td><td>place a cat on c3</td></tr>
+      <tr><td><code>a1&gt;Ce3</code></td><td>hand empty: a1 graduates and is placed, as a cat, on e3</td></tr>
+      <tr><td><code>Kc1=a1b1c1</code></td><td>the placement completed that line, and it graduates</td></tr>
+      <tr><td><code>a1&gt;Ce3=c1d2e3</code></td><td>both at once</td></tr>
+      <tr><td><code>Kc1=a1b1c1#</code></td><td>and it won the game</td></tr>
+    </table>
+    <p>
+      <code>=</code> echoes chess promotion, which is what graduation is.
+      <code>&gt;</code> reads as "becomes", written source-first because the
+      piece leaves a1 <em>before</em> the cat lands on e3. Every token says
+      exactly what happened, so a game replays from its move list alone.
+    </p>
+
+    <h3>The board editor</h3>
+    <p>
+      <strong>Board editor</strong> at the foot of the page sets up any
+      position. Five tiles appear beside the board &mdash; a kitten and a cat
+      for each side, and a cross that removes pieces. Click a tile to pick it
+      up, then click squares to place that piece over and over.
+    </p>
+    <p>
+      Choose whose turn it is and how many kittens and cats each player holds.
+      <strong>Every player owns exactly eight pieces</strong> counting the bed
+      and the hand together, so a total that does not add up keeps
+      <strong>Continue from here</strong> disabled until you fix it. Continuing
+      leaves the editor and starts a fresh line from that position.
+    </p>
+    <p>
+      A line that starts anywhere but the opening position carries a tag at the
+      top of the move list saying where, and the tag is written into the
+      exported text and read back on import:
+    </p>
+    <pre>[FEN "6/4B1/3a2/2a3/6/6-60-70-bp"] 1... Ka1 2. Kf6</pre>
+    <p>
+      Either side can move first from such a position. When grey begins, the
+      first move is numbered <code>1...</code> rather than <code>1.</code>, as a
+      chess game continued from black's turn would be.
+    </p>
+
+    <h3>Menus</h3>
+    <table class="help-table">
+      <tr><td><strong>Board</strong></td><td>theme and a lightness slider</td></tr>
+      <tr><td><strong>Pieces</strong></td><td>theme, a colour picker for each player, a lightness slider, and a reset</td></tr>
+      <tr><td><strong>&#9881;</strong></td><td>coordinates, how variations are laid out, whether square highlighting sits behind or in front of the pieces, and the booping animation and its speed</td></tr>
+    </table>
+    <p>
+      All of it is remembered between visits, in your browser. Drag the
+      <strong>bottom-right corner</strong> of the board to resize it.
+    </p>
+
+    <h3>What is not kept</h3>
+    <p>
+      The line you are building lives in this tab and nowhere else, so a reload
+      clears it. Copy the move list out if you want to keep it.
+    </p>
+  </article>
+</dialog>
 
 <footer>
   <button id="toggle-editor">Board editor</button>
