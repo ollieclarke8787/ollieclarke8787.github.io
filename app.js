@@ -150,7 +150,7 @@ function buildBoard() {
       square.dataset.column = column;
       square.dataset.name = name;
       square.innerHTML = `<span class="coord">${name}</span>`;
-      square.addEventListener("click", () => onSquare(square));
+      square.addEventListener("click", (event) => onSquare(square, event));
       board.appendChild(square);
     }
   }
@@ -328,10 +328,15 @@ function renderStatus(state) {
 
 /* ---------------- placing ---------------- */
 
-function onSquare(square) {
+function onSquare(square, event) {
   closePicker();
   closeContext();
-  if (app.editor) return editorSquare(square);
+  // While editing, a pointer has already been dealt with by the painting
+  // stroke. Only a keyboard press reaches here - which reports no clicks.
+  if (app.editor) {
+    if (!event || event.detail === 0) editorSquare(square);
+    return;
+  }
   const state = app.pending ? app.pending.state : app.current.state;
   if (state.isOver || state.mode !== "play") return;
   const name = square.dataset.name;
@@ -473,11 +478,24 @@ function lineToText(node) {
   return pathTo(node).map((step, index) => numbered(step.token, index)).join(" ");
 }
 
-function numbered(token, ply) {
+/* "2." before an orange move, "2..." before a grey one. */
+function moveLabel(ply) {
   const at = ply + startOffset();
-  return at % 2 === 0
-    ? `${at / 2 + 1}. ${token}`
-    : (ply === 0 ? `${(at - 1) / 2 + 1}... ${token}` : token);
+  return `${Math.floor(at / 2) + 1}${at % 2 ? "..." : "."}`;
+}
+
+/* A move carries a number when it is orange's, or when it opens a run of text
+ * and so has nothing before it to be counted from. Three things open a run:
+ * the first move of the game, the first move of a variation, and the move
+ * that picks the main line up again after a variation has interrupted it.
+ * Any of the three can be grey's, which is what the "..." is for.
+ *
+ * The moves that merely *follow* one of those are not opening anything.
+ * Numbering them too gave "2. Kd4 2... Kb3" for a variation whose two moves
+ * are the two halves of a single move. */
+function numbered(token, ply, startsRun = false) {
+  const at = ply + startOffset();
+  return at % 2 === 0 || startsRun ? `${moveLabel(ply)} ${token}` : token;
 }
 
 /* The whole tree as text, variations in brackets, PGN-style:
@@ -492,21 +510,21 @@ function treeToText(from, ply) {
   let node = from;
   let index = ply;
 
+  // True once brackets have come between the reader and the main line.
+  let interrupted = false;
+
   while (node.children.length) {
     const [main, ...branches] = node.children;
-    parts.push(numbered(main.token, index));
+    parts.push(numbered(main.token, index, index === 0 || interrupted));
 
     for (const branch of branches) {
-      const inner = [
-        index % 2 === 0
-          ? numbered(branch.token, index)
-          : `${Math.floor(index / 2) + 1}... ${branch.token}`,
-      ];
+      const inner = [numbered(branch.token, index, true)];
       const rest = treeToText(branch, index + 1);
       if (rest) inner.push(rest);
       parts.push(`(${inner.join(" ")})`);
     }
 
+    interrupted = branches.length > 0;
     node = main;
     index += 1;
   }
@@ -530,7 +548,7 @@ function mainLineToText() {
   let index = 0;
   while (node.children.length) {
     node = node.children[0];
-    parts.push(numbered(node.token, index));
+    parts.push(numbered(node.token, index, index === 0));
     index += 1;
   }
   return parts.join(" ");
@@ -601,10 +619,9 @@ function revealInBox(box, element) {
 }
 
 function moveNumber(index) {
-  const at = index + startOffset();
   const span = document.createElement("span");
   span.className = "number";
-  span.textContent = `${Math.floor(at / 2) + 1}${at % 2 ? "..." : "."}`;
+  span.textContent = moveLabel(index);
   return span;
 }
 
@@ -616,18 +633,24 @@ function moveNumber(index) {
  * variation inside a variation indents again, so depth is readable at a
  * glance, and the main line picks up underneath. `inline` runs them into the
  * text in brackets, which is compact but harder to scan once they nest. */
-function renderLine(from, ply) {
+/* `opensRun` says whether the first move rendered here begins a run of text.
+ * The main line does. A variation's continuation does not: its first move was
+ * already written, with its number, by the branch that introduced it. */
+function renderLine(from, ply, opensRun = true) {
   const inline = document.body.dataset.moves === "inline";
   const fragment = document.createDocumentFragment();
   let node = from;
   let index = ply;
+  let interrupted = false;
 
   while (node.children.length) {
     const [main, ...branches] = node.children;
 
-    // A number goes before every white-side move, and before the very first
-    // move of a line that starts on the other side, so "1..." is visible.
-    if ((index + startOffset()) % 2 === 0 || index === ply) {
+    // A number goes before every orange move, and before a grey one that
+    // opens a run of text - see `numbered`, which decides the same thing for
+    // the exported version.
+    const startsRun = interrupted || (opensRun && index === ply);
+    if ((index + startOffset()) % 2 === 0 || startsRun) {
       fragment.appendChild(moveNumber(index));
     }
     fragment.appendChild(plySpan(main));
@@ -640,7 +663,7 @@ function renderLine(from, ply) {
       wrapper.appendChild(moveNumber(index));
       wrapper.appendChild(plySpan(branch));
       wrapper.appendChild(document.createTextNode(" "));
-      wrapper.appendChild(renderLine(branch, index + 1));
+      wrapper.appendChild(renderLine(branch, index + 1, false));
       if (inline) {
         // Every move is followed by a space, so trim the trailing one and
         // close tight - otherwise brackets read as "Kf1 )" and, once nested,
@@ -655,6 +678,7 @@ function renderLine(from, ply) {
       if (inline) fragment.appendChild(document.createTextNode(" "));
     }
 
+    interrupted = branches.length > 0;
     node = main;
     index += 1;
   }
@@ -749,6 +773,11 @@ async function newGame(fen) {
   showError("");
   try {
     const state = await api("/api/state", { fen: fen || null });
+    // The opening position is whatever a game with no FEN starts from. Learn
+    // it here, before anything renders: a tag is written for a start that is
+    // not the opening one, and until this is known the opening position does
+    // not match itself.
+    if (!fen && !app.standardStart) app.standardStart = state.fen;
     app.root = makeNode(null, state.fen, state, null);
     app.pending = null;
     await goTo(app.root);
@@ -826,6 +855,13 @@ function wireResize() {
 
 const BRUSHES = { "a-kit": "a", "a-cat": "A", "b-kit": "b", "b-cat": "B", delete: "." };
 
+/* Right-clicking while editing swaps the brush for the other player's piece of
+ * the same kind - laying out a position means alternating colours constantly,
+ * and the tiles are a round trip away from the board. */
+const OTHER_COLOUR = {
+  "a-kit": "b-kit", "b-kit": "a-kit", "a-cat": "b-cat", "b-cat": "a-cat",
+};
+
 function enterEditor() {
   const state = app.current.state;
   app.editor = {
@@ -834,6 +870,7 @@ function enterEditor() {
     turn: state.turn,
     hands: { a: { ...state.hands.a }, b: { ...state.hands.b } },
     fen: null,          // set once the server accepts the position
+    stroke: null,       // what the pointer is painting, while it is down
   };
   document.body.dataset.editing = "1";
   document.getElementById("palette").hidden = false;
@@ -859,19 +896,118 @@ function leaveEditor() {
 }
 
 function paintPalette() {
-  for (const tile of document.querySelectorAll(".palette .tile")) {
+  // The clear-the-board tile carries no brush; it acts, rather than arming.
+  for (const tile of document.querySelectorAll(".palette .tile[data-brush]")) {
     const brush = tile.dataset.brush;
     tile.classList.toggle("active", app.editor?.brush === brush);
     if (brush !== "delete") tile.innerHTML = pieceMarkup(BRUSHES[brush]);
   }
 }
 
-function editorSquare(square) {
-  const row = +square.dataset.row;
-  const column = +square.dataset.column;
-  app.editor.board[row][column] = BRUSHES[app.editor.brush];
+function clearEditorBoard() {
+  app.editor.board = Array.from({ length: 6 }, () => Array(6).fill("."));
+  app.editor.hands = { a: { kits: 8, cats: 0 }, b: { kits: 8, cats: 0 } };
+  for (const side of ["a", "b"]) {
+    document.getElementById(`hand-${side}-kits`).value = 8;
+    document.getElementById(`hand-${side}-cats`).value = 0;
+  }
   renderEditorBoard();
   validateEditor();
+}
+
+/* What a stroke starting on this square should write everywhere it goes.
+ *
+ * Clicking a square that already holds the selected piece takes it off again,
+ * so a tile is its own undo. Deciding that once, from the square the stroke
+ * starts on, is what lets a drag stay coherent: sweeping over a row of your
+ * own kittens clears the row rather than flickering each square on and off. */
+function strokeValue(square) {
+  const wanted = BRUSHES[app.editor.brush];
+  return editorCell(square) === wanted ? "." : wanted;
+}
+
+const editorCell = (square) =>
+  app.editor.board[+square.dataset.row][+square.dataset.column];
+
+function paintSquare(square) {
+  if (editorCell(square) === app.editor.stroke) return;   // already what it should be
+  app.editor.board[+square.dataset.row][+square.dataset.column] = app.editor.stroke;
+  renderEditorBoard();
+  validateEditor();
+}
+
+/* The pointer is captured by the board, so events report the board rather than
+ * whatever is under the finger. Ask what is under it. */
+function paintUnder(x, y) {
+  const under = document.elementFromPoint(x, y);
+  const square = under && under.closest && under.closest(".square");
+  if (square) paintSquare(square);
+}
+
+/* The keyboard path. A pointer goes through the stroke handlers below, which
+ * cover the drag as well; this is what Enter or Space on a focused square
+ * does, and it is one square's worth of the same thing. */
+function editorSquare(square) {
+  app.editor.stroke = strokeValue(square);
+  paintSquare(square);
+  app.editor.stroke = null;
+}
+
+/* Press, drag, release: every square the pointer touches takes the stroke's
+ * value. */
+function wireEditorPainting() {
+  const board = document.getElementById("board");
+
+  board.addEventListener("pointerdown", (event) => {
+    if (!app.editor || event.button !== 0) return;
+    const square = event.target.closest(".square");
+    if (!square) return;
+    event.preventDefault();          // no text selection, no drag-and-drop
+    app.editor.stroke = strokeValue(square);
+    app.editor.at = { x: event.clientX, y: event.clientY };
+    paintSquare(square);
+    // Touch captures the pointer to this square on its own; taking the capture
+    // for the whole board makes mouse and touch behave the same way.
+    board.setPointerCapture(event.pointerId);
+  });
+
+  board.addEventListener("pointermove", (event) => {
+    if (!app.editor || app.editor.stroke === null) return;
+    const to = { x: event.clientX, y: event.clientY };
+    const from = app.editor.at || to;
+    // A quick drag reports a handful of widely spaced points, so walk the line
+    // between them in thirds of a square. Sampling only where the pointer was
+    // seen leaves gaps in the middle of the stroke.
+    const step = Math.max(6, board.getBoundingClientRect().width / 18);
+    const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / step));
+    for (let i = 1; i <= steps; i++) {
+      paintUnder(from.x + ((to.x - from.x) * i) / steps,
+                 from.y + ((to.y - from.y) * i) / steps);
+    }
+    app.editor.at = to;
+  });
+
+  const endStroke = () => {
+    if (app.editor) { app.editor.stroke = null; app.editor.at = null; }
+  };
+  board.addEventListener("pointerup", endStroke);
+  board.addEventListener("pointercancel", endStroke);
+  window.addEventListener("pointerup", endStroke);
+
+  // Right-click over the board swaps colours too, so laying out both sides
+  // never needs the tiles.
+  board.addEventListener("contextmenu", (event) => {
+    if (!app.editor) return;
+    event.preventDefault();
+    swapBrushColour();
+  });
+}
+
+function swapBrushColour() {
+  const other = OTHER_COLOUR[app.editor.brush];
+  if (!other) return;              // the eraser has no other colour
+  app.editor.brush = other;
+  paintPalette();
 }
 
 function renderEditorBoard() {
@@ -1079,19 +1215,20 @@ function main() {
     (app.editor ? leaveEditor() : enterEditor());
   document.getElementById("continue-here").onclick = continueFromHere;
   document.getElementById("editor-cancel").onclick = leaveEditor;
-  document.getElementById("editor-clear").onclick = () => {
-    app.editor.board = Array.from({ length: 6 }, () => Array(6).fill("."));
-    app.editor.hands = { a: { kits: 8, cats: 0 }, b: { kits: 8, cats: 0 } };
-    for (const side of ["a", "b"]) {
-      document.getElementById(`hand-${side}-kits`).value = 8;
-      document.getElementById(`hand-${side}-cats`).value = 0;
-    }
-    renderEditorBoard();
-    validateEditor();
-  };
-  for (const tile of document.querySelectorAll(".palette .tile")) {
+  document.getElementById("editor-clear").onclick = clearEditorBoard;
+  document.getElementById("palette-clear").onclick = clearEditorBoard;
+  for (const tile of document.querySelectorAll(".palette .tile[data-brush]")) {
     tile.onclick = () => { app.editor.brush = tile.dataset.brush; paintPalette(); };
+    // Right-click flips the selected colour wherever it lands - over the
+    // tiles or over the board - rather than meaning something different in
+    // each place.
+    tile.addEventListener("contextmenu", (event) => {
+      if (!app.editor) return;
+      event.preventDefault();
+      swapBrushColour();
+    });
   }
+  wireEditorPainting();
   document.getElementById("editor-turn").onchange = validateEditor;
   for (const side of ["a", "b"]) {
     for (const kind of ["kits", "cats"]) {
@@ -1193,7 +1330,7 @@ function main() {
     if (!event.target.closest(".ply")) closeContext();
   });
 
-  newGame(null).then(() => { app.standardStart = app.root.fen; renderNotation(); });
+  newGame(null);
 }
 
 main();

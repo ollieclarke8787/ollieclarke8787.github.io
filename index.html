@@ -111,6 +111,14 @@
         <button class="tile" data-brush="b-kit" title="Grey kitten"></button>
         <button class="tile" data-brush="b-cat" title="Grey cat"></button>
         <button class="tile erase" data-brush="delete" title="Remove pieces">&#10005;</button>
+        <button class="tile sweep" id="palette-clear"
+                title="Clear the whole board" aria-label="Clear the whole board">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M9 7V5h6v2M7 7l1 12h8l1-12" fill="none"
+                  stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -122,7 +130,8 @@
   <section class="panel">
     <div class="card" id="editor-card" hidden>
       <h2>Board editor</h2>
-      <p class="hint">Pick a tile, then click squares. The cross removes pieces.</p>
+      <p class="hint">Pick a tile, then click or drag over squares. Right-click
+        swaps colour; the cross removes pieces and the bin clears the board.</p>
 
       <label class="field">To move
         <select id="editor-turn">
@@ -160,7 +169,7 @@
       <div class="notation" id="notation"></div>
     </div>
 
-    <div class="card" id="graduation-card" hidden>
+    <div class="card graduation-card" id="graduation-card" hidden>
       <h2>Choose a line to graduate</h2>
       <p class="hint">Hover to preview, click to graduate.</p>
       <ul class="options" id="graduation-options"></ul>
@@ -170,6 +179,7 @@
   <section class="text-side">
     <div class="controls">
       <button id="new-game">New game</button>
+      <button id="toggle-editor" title="Set up any position, then continue from it">Board editor</button>
       <button id="back">&larr; Back</button>
       <button id="forward">Forward &rarr;</button>
       <button id="promote" title="Move this line up one level">Promote variation</button>
@@ -401,11 +411,23 @@
 
     <h3>The board editor</h3>
     <p>
-      <strong>Board editor</strong> at the foot of the page sets up any
-      position. Five tiles appear beside the board &mdash; a kitten and a cat
-      for each side, and a cross that removes pieces. Click a tile to pick it
-      up, then click squares to place that piece over and over.
+      <strong>Board editor</strong>, beside <strong>New game</strong> under the
+      board, sets up any position. Five tiles appear beside the board &mdash; a
+      kitten and a cat for each side, a cross that removes pieces, and a bin
+      that clears the whole board. Click a tile to pick it up, then click
+      squares to place that piece over and over.
     </p>
+    <ul>
+      <li><strong>Drag</strong> across squares to fill a run of them in one
+        stroke &mdash; erasing too, if you started on a square that already
+        held the selected piece.</li>
+      <li><strong>Click a square that already holds the selected piece</strong>
+        and it comes off again, so a tile is its own undo. A different piece
+        is simply replaced.</li>
+      <li><strong>Right-click</strong>, over the board or over the tiles, to
+        swap to the other player's piece of the same kind &mdash; laying out
+        both sides never needs a trip back to the tiles.</li>
+    </ul>
     <p>
       Choose whose turn it is and how many kittens and cats each player holds.
       <strong>Every player owns exactly eight pieces</strong> counting the bed
@@ -445,8 +467,9 @@
 </dialog>
 
 <footer>
-  <button id="toggle-editor">Board editor</button>
-  <span class="footer-hint" id="editor-hint">Set up any position, then continue from it.</span>
+  <p class="disclaimer">
+    Not affiliated with Smirk &amp; Dagger / Smirk &amp; Laughter Games in any way
+  </p>
 </footer>
 
 <div class="picker" id="picker" hidden>

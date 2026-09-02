@@ -121,6 +121,10 @@ main {
   /* The list is right under the board now, so it has to leave the buttons
      below it somewhere to be. */
   .moves-card .notation { max-height: 45vh; }
+  /* Choosing which line graduates is the move you are in the middle of, so it
+     goes above the list rather than under it, where the list's own height
+     would push it off the screen. */
+  .graduation-card { order: -1; }
 }
 
 /* ---------- board ---------- */
@@ -369,6 +373,9 @@ input[type="color"] {
 }
 .palette .tile .piece { width: 26px; height: 26px; }
 .palette .tile.erase { font-size: 17px; color: var(--danger); }
+/* Not a brush - it acts once - so it sits apart from the tiles you toggle. */
+.palette .tile.sweep { margin-top: 8px; color: var(--danger); }
+.palette .tile.sweep svg { width: 20px; height: 20px; }
 
 /* The board takes the whole column normally; with the palette beside it, it
    has to give up the palette's width so the two together still fit. */
@@ -388,13 +395,16 @@ body[data-editing="1"] .board-area .board-wrap { width: calc(100% - 52px); }
 /* In the editor every square is clickable and the rules do not apply, so the
    usual playable/last markings are meaningless. */
 body[data-editing="1"] .square { cursor: cell; }
+/* Dragging across squares paints them, so the browser must not read the drag
+   as a scroll instead. */
+body[data-editing="1"] .board { touch-action: none; }
 
 footer {
   display: flex; align-items: center; gap: 12px;
   padding: 14px 22px 26px; max-width: 1180px; margin: 0 auto;
   border-top: 1px solid var(--line);
 }
-.footer-hint { font-size: 12px; color: var(--muted); }
+.disclaimer { margin: 0; font-size: 12px; color: var(--muted); }
 
 /* ---------- help ---------- */
 /* Entries in a menu that acts rather than sets something. */
