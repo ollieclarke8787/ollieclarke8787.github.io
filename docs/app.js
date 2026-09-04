@@ -20,8 +20,20 @@ function makeNode(token, fen, state, parent) {
 }
 
 /* Make `node` current, fetching its position first if it has never been
- * visited. Everything that moves around the tree goes through here. */
-async function goTo(node) {
+ * visited. Everything that moves around the tree goes through here.
+ *
+ * The board it is leaving is read before anything changes, so the pieces can
+ * be shown travelling to where they end up rather than cutting to it. A jump
+ * across the tree gets the same treatment as a step along a line: the two
+ * positions are matched up piece by piece. `animate: false` is for arriving
+ * from somewhere the old board has nothing to do with - a new game, an import,
+ * or leaving the editor. */
+async function goTo(node, options = {}) {
+  const leaving = app.pending ? app.pending.state : app.current && app.current.state;
+  const from = options.animate === false || !leaving || node === app.current
+    ? null : leaving.board;
+  const hint = from ? stepHint(app.current, node) : null;
+
   app.pending = null;
   app.removal = null;
   app.current = node;
@@ -33,7 +45,35 @@ async function goTo(node) {
       return;
     }
   }
-  render();
+  // Read off the screen last of all, so a step that arrives mid-flight picks
+  // the pieces up where they have actually got to.
+  const seen = from && app.animate ? visualCentres() : null;
+  render({
+    travel: from && { from, seen, hint, duration: options.duration || travelDuration() },
+  });
+}
+
+/* One ply either way says exactly which square a piece was placed on and which
+ * one, on an empty-hand turn, was graduated to place it - so those two need
+ * not be guessed at. Going back, the two swap over: what was placed goes back
+ * to the hand, and what was graduated comes out of it. */
+function stepHint(before, after) {
+  if (!before) return null;
+  if (after.parent === before) return placementOf(after.token);
+  if (before.parent === after) {
+    const back = placementOf(before.token);
+    return { enters: back.leaves, leaves: back.enters };
+  }
+  return null;
+}
+
+/* `Kc3`, `Cc3` and `a1>Ce3` all name the square landed on; only the third
+ * names a square left behind. */
+function placementOf(token) {
+  if (!token) return { enters: null, leaves: null };
+  const landing = token.match(/^(?:[KC]|[a-f][1-6]>C)([a-f][1-6])/);
+  const source = token.match(/^([a-f][1-6])>C/);
+  return { enters: landing && landing[1], leaves: source && source[1] };
 }
 
 const app = {
@@ -212,6 +252,25 @@ function fadeDuration() {
   return Math.round(320 / animationSpeed());
 }
 
+/* Crossing from one position to the next, when that is all that is being
+ * asked for. */
+const TRAVEL_MS = 260;
+const BRISKEST_TRAVEL_MS = 40;
+
+function travelDuration() {
+  return Math.round(TRAVEL_MS / animationSpeed());
+}
+
+/* Steps asked for one after another get the time there actually is between
+ * them. They overlap rather than queueing up behind each other - waiting for
+ * each animation to finish before drawing the next is exactly what makes a
+ * fast scroll feel slow - and cutting each one to the pace the wheel is
+ * setting keeps the pieces up with it instead of trailing a backlog of moves.
+ * A step on its own, with nothing before it, animates in full. */
+function pacedDuration(since) {
+  return Math.max(BRISKEST_TRAVEL_MS, Math.min(travelDuration(), Math.round(since)));
+}
+
 const squareStep = () =>
   document.querySelector(".square").getBoundingClientRect().width + 3;
 
@@ -234,6 +293,184 @@ function animateSlides(moved) {
         piece.style.transform = "";
       }, duration + 40);
     });
+  }
+}
+
+/* ---------------- moving between two positions ---------------- */
+
+/* Stepping through a line is not always one move: clicking a move in the list
+ * can land anywhere in the tree. So rather than reading a move, the two boards
+ * are matched up piece by piece - like for like, each one paired with the
+ * nearest square it could have come from, closest pairs settled first.
+ *
+ * Anything on the old board left without a partner went back to a hand, and
+ * anything on the new one came out of one. A kitten that graduated is both:
+ * the kitten leaves and a cat arrives, which is what happened.
+ *
+ * `hint` names the squares a single ply is known to have filled and emptied,
+ * so the common case - a placement next to a boop, where both are one square
+ * from the piece that moved - is not left to a tie-break. */
+function transition(before, after, hint) {
+  const gone = [], come = [];
+  for (let row = 0; row < 6; row++) {
+    for (let column = 0; column < 6; column++) {
+      const was = before[row][column], now = after[row][column];
+      if (was === now) continue;
+      if (was !== ".") gone.push({ at: [row, column], cell: was });
+      if (now !== ".") come.push({ at: [row, column], cell: now });
+    }
+  }
+
+  const pinned = (list, name) => {
+    const at = squareToIndices(name);
+    return at ? list.find((item) => item.at[0] === at[0] && item.at[1] === at[1]) : null;
+  };
+  const spare = new Set([pinned(come, hint && hint.enters), pinned(gone, hint && hint.leaves)]);
+
+  const pairs = [];
+  for (const from of gone) {
+    for (const to of come) {
+      if (from.cell !== to.cell || spare.has(from) || spare.has(to)) continue;
+      pairs.push({ from, to, gap: Math.hypot(from.at[0] - to.at[0], from.at[1] - to.at[1]) });
+    }
+  }
+  pairs.sort((one, other) => one.gap - other.gap);
+
+  const moves = [], taken = new Set();
+  for (const { from, to } of pairs) {
+    if (taken.has(from) || taken.has(to)) continue;
+    taken.add(from); taken.add(to);
+    moves.push({ from: from.at, to: to.at });
+  }
+  return {
+    moves,
+    arrivals: come.filter((item) => !taken.has(item)),
+    departures: gone.filter((item) => !taken.has(item)),
+  };
+}
+
+const centreOf = (element) => {
+  const box = element.getBoundingClientRect();
+  return [box.left + box.width / 2, box.top + box.height / 2];
+};
+
+/* Where a piece of this colour comes from, and goes back to. */
+const handCentre = (cell) =>
+  centreOf(document.getElementById(`hand-${cell.toLowerCase() === "a" ? "a" : "b"}`));
+
+/* How far a piece has to travel to get from its square to the hand. */
+function reachToHand(square, cell) {
+  const [hx, hy] = handCentre(cell);
+  const [sx, sy] = centreOf(square);
+  return `translate(${hx - sx}px, ${hy - sy}px) scale(.35)`;
+}
+
+const squareAtIndex = (row, column) =>
+  document.querySelector(`.square[data-row="${row}"][data-column="${column}"]`);
+
+/* Where every piece is on screen at this moment, part-way through whatever it
+ * was already doing. Keyed by the square it is in, because that is what the
+ * next position has to match it up with.
+ *
+ * A step that arrives while the last one is still moving starts from what the
+ * eye can see rather than from where the pieces logically were, so overlapping
+ * steps flow into one another instead of snapping back to begin again. */
+function visualCentres() {
+  const centres = new Map();
+  for (const square of document.querySelectorAll(".square")) {
+    const piece = square.querySelector(".piece");
+    if (!piece) continue;
+    const transform = getComputedStyle(piece).transform;
+    centres.set(`${square.dataset.row},${square.dataset.column}`, {
+      centre: centreOf(piece),
+      scale: transform === "none" ? 1 : new DOMMatrix(transform).a,
+      opacity: getComputedStyle(piece).opacity,
+    });
+  }
+  return centres;
+}
+
+/* The transform that puts a piece back exactly where it was last seen, written
+ * relative to whichever square it is sitting in now. */
+function resumeFrom(seen, at, square) {
+  const was = seen && seen.get(`${at[0]},${at[1]}`);
+  if (!was) return null;
+  const [sx, sy] = centreOf(square);
+  return {
+    transform:
+      `translate(${was.centre[0] - sx}px, ${was.centre[1] - sy}px) scale(${was.scale})`,
+    opacity: was.opacity,
+  };
+}
+
+/* Draw the change from one position to the next.
+ *
+ * The board has already been drawn as it will end up, so a piece that moved is
+ * pushed back to where it came from and let go; one that arrived starts small
+ * over its owner's hand and grows into place. Only a piece that left has
+ * nothing on the board to animate, so that one flies as a copy. */
+function animateTravel(before, after, seen, hint, duration) {
+  const { moves, arrivals, departures } = transition(before, after, hint);
+  if (!moves.length && !arrivals.length && !departures.length) return;
+
+  const board = document.getElementById("board");
+  board.style.setProperty("--travel-ms", `${duration}ms`);
+  const step = squareStep();
+  const started = [];
+
+  const begin = (square, transform, opacity) => {
+    const piece = square && square.querySelector(".piece");
+    if (!piece) return;
+    piece.style.transform = transform;
+    if (opacity !== null) piece.style.opacity = opacity;
+    // A piece crossing the board passes over squares that would otherwise
+    // paint on top of it, so its own square is lifted for the trip.
+    square.classList.add("lifted");
+    started.push(piece);
+  };
+
+  for (const { from, to } of moves) {
+    const square = squareAtIndex(to[0], to[1]);
+    if (!square) continue;
+    const carried = resumeFrom(seen, from, square);
+    begin(square,
+      carried ? carried.transform
+        : `translate(${(from[1] - to[1]) * step}px, ${(from[0] - to[0]) * step}px)`,
+      carried ? carried.opacity : null);
+  }
+  for (const { at, cell } of arrivals) {
+    const square = squareAtIndex(at[0], at[1]);
+    if (square) begin(square, reachToHand(square, cell), "0");
+  }
+
+  if (started.length) {
+    // Commit where everything starts before turning the transitions on, or the
+    // browser is free to collapse the two into no movement at all.
+    void board.offsetWidth;
+    for (const piece of started) {
+      piece.classList.add("travelling");
+      piece.style.transform = "translate(0, 0)";
+      piece.style.opacity = "";
+    }
+    setTimeout(() => {
+      for (const piece of started) {
+        piece.classList.remove("travelling");
+        piece.style.transform = "";
+        piece.style.opacity = "";
+        if (piece.parentElement) piece.parentElement.classList.remove("lifted");
+      }
+    }, duration + 40);
+  }
+
+  for (const { at, cell } of departures) {
+    const square = squareAtIndex(at[0], at[1]);
+    if (!square) continue;
+    const copy = ghost(square, cell);
+    // Its own square is where the copy is put; if the piece it stands in for
+    // had not got there yet, it starts from where it had.
+    const carried = resumeFrom(seen, at, square);
+    if (carried) copy.style.transform = carried.transform;
+    sendOff(copy, reachToHand(square, cell), duration);
   }
 }
 
@@ -261,6 +498,9 @@ function ghost(square, cell) {
 }
 
 function sendOff(node, transform, duration) {
+  // Whatever is flying it says how long it has; the setting is already in the
+  // duration by the time it gets here.
+  node.style.setProperty("--fade-ms", `${duration}ms`);
   // The starting state has to be committed before the transition is switched
   // on, or the browser is free to collapse the two into no movement at all.
   void node.offsetWidth;
@@ -321,7 +561,7 @@ function render(options = {}) {
     const coord = square.querySelector(".coord").outerHTML;
     square.innerHTML = coord + (cell === "." ? "" : pieceMarkup(cell));
     square.classList.remove(
-      "playable", "highlight", "last", "source", "selected", "target");
+      "playable", "highlight", "last", "source", "selected", "target", "lifted");
     square.disabled = true;
   }
 
@@ -357,6 +597,10 @@ function render(options = {}) {
     if (options.slid) animateSlides(options.slid);
     if (options.fell) animateFalls(options.fell);
     if (options.collected) animateCollection(options.collected);
+    if (options.travel) {
+      animateTravel(options.travel.from, state.board,
+        options.travel.seen, options.travel.hint, options.travel.duration);
+    }
   }
 }
 
@@ -695,12 +939,24 @@ function mainLineToText() {
   return parts.join(" ");
 }
 
+/* At a position with more than one recorded continuation, every one of them
+ * is marked - the indentation says which is the main line, but only if you are
+ * reading the shape of the list rather than the position in front of you. The
+ * alternatives take an arrow as well, so the main line is still the one
+ * without. */
+function choiceClass(node) {
+  const choices = app.current.children;
+  if (choices.length < 2 || node.parent !== app.current) return "";
+  return choices.indexOf(node) === 0 ? " choice" : " choice alt";
+}
+
 function plySpan(node) {
   const span = document.createElement("span");
-  span.className = "ply" + (node.id === app.current.id ? " current" : "");
+  span.className = "ply" + (node.id === app.current.id ? " current" : "")
+    + choiceClass(node);
   span.textContent = node.token;
   span.title = node.fen;
-  span.addEventListener("click", () => goTo(node));
+  span.addEventListener("click", () => step(() => node));
   span.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     openContext(node, event.pageX, event.pageY);
@@ -830,25 +1086,35 @@ function renderLine(from, ply, opensRun = true) {
 
 /* Promoting works on the point where this line diverges, not on the move you
  * happen to be looking at - otherwise promoting from deep inside a variation
- * would shuffle moves that are not the reason the line is a variation. */
+ * would shuffle moves that are not the reason the line is a variation.
+ *
+ * The nearest such point, not the outermost one: a variation inside a
+ * variation is promoted within the line it branches off, and whether that line
+ * is itself a variation is a separate question, answered by promoting again. */
 function branchPoint(node) {
-  let anchor = null;
   for (let step = node; step && step.parent; step = step.parent) {
-    if (step.parent.children.indexOf(step) > 0) anchor = step;
+    if (step.parent.children.indexOf(step) > 0) return step;
   }
-  return anchor;
+  return null;
 }
 
+/* Make-main-line needs a divergence anywhere above it, not just the nearest
+ * one: a line already first among its siblings can still be a variation
+ * further up, and that is exactly what it is for. */
 const canPromote = (node) => Boolean(branchPoint(node));
-const canMakeMain = (node) => Boolean(branchPoint(node));
+const canMakeMain = (node) => pathTo(node).some(
+  (step) => step.parent.children.indexOf(step) > 0);
 
+/* Take this line to the front of the branch it hangs off, so it becomes the
+ * line at that level and the others fall in behind it in the order they were.
+ * One level only: a line two variations deep comes up one, and stays a
+ * variation of whatever the outer one is a variation of. */
 function promoteVariation(node) {
   const anchor = branchPoint(node);
   if (!anchor) return;
   const siblings = anchor.parent.children;
-  const index = siblings.indexOf(anchor);
-  siblings.splice(index, 1);
-  siblings.splice(index - 1, 0, anchor);
+  siblings.splice(siblings.indexOf(anchor), 1);
+  siblings.unshift(anchor);
   render();
 }
 
@@ -897,15 +1163,47 @@ function closeContext() {
 
 /* ---------------- navigation ---------------- */
 
+/* Steps can be asked for faster than one takes to draw - a flick of the wheel
+ * is several at once, and the arrow key repeats. They still go one at a time,
+ * because a step has to know the position the one before it reached and a
+ * position that has never been visited has to be fetched first. But only the
+ * drawing is serialised: nothing waits for an animation to end. Each one is
+ * cut to the pace being set and the next picks the pieces up wherever they
+ * have got to, so the board keeps up with the wheel and the pieces flow
+ * through the positions instead of the scroll queueing up behind them. */
+const steps = { queue: [], running: false, last: 0 };
+
+function step(pick) {
+  steps.queue.push(pick);
+  if (!steps.running) drainSteps();
+}
+
+async function drainSteps() {
+  steps.running = true;
+  try {
+    while (steps.queue.length) {
+      const node = steps.queue.shift()();
+      if (!node || node === app.current) continue;
+      const now = performance.now();
+      // `last` is not cleared between runs: a step that follows a long pause
+      // is on its own however many came before it, and animates in full.
+      const duration = pacedDuration(now - steps.last);
+      steps.last = now;
+      await goTo(node, { duration });
+    }
+  } finally {
+    steps.running = false;
+  }
+}
+
 function back() {
-  if (app.pending) { app.pending = null; render(); return Promise.resolve(); }
-  if (app.current.parent) return goTo(app.current.parent);
-  return Promise.resolve();
+  // A graduation choice is half a move: backing out of it goes no further.
+  if (app.pending) { app.pending = null; render(); return; }
+  step(() => app.current.parent);
 }
 
 function forward() {
-  if (app.current.children.length) return goTo(app.current.children[0]);
-  return Promise.resolve();
+  step(() => app.current.children[0] || null);
 }
 
 /* ---------------- loading ---------------- */
@@ -921,7 +1219,7 @@ async function newGame(fen) {
     if (!fen && !app.standardStart) app.standardStart = state.fen;
     app.root = makeNode(null, state.fen, state, null);
     app.pending = null;
-    await goTo(app.root);
+    await goTo(app.root, { animate: false });
   } catch (error) {
     showError(error.message);
   }
@@ -939,7 +1237,7 @@ async function loadMoves() {
     // Land at the end of the main line, which is where you were reading.
     let last = app.root;
     while (last.children.length) last = last.children[0];
-    await goTo(last);
+    await goTo(last, { animate: false });
   } catch (error) {
     showError(error.message);
   }
@@ -1208,7 +1506,7 @@ async function continueFromHere() {
   const state = app.editor.state;
   leaveEditor();
   app.root = makeNode(null, state.fen, state, null);
-  await goTo(app.root);
+  await goTo(app.root, { animate: false });
 }
 
 /* ---------------- wheel navigation ---------------- */
@@ -1223,9 +1521,8 @@ const DELTA_SCALE = { 0: 1, 1: 16, 2: 400 };
 function wireWheel() {
   const board = document.getElementById("board-wrap");
   let accumulated = 0;
-  let busy = false;
 
-  board.addEventListener("wheel", async (event) => {
+  board.addEventListener("wheel", (event) => {
     event.preventDefault();          // navigate instead of scrolling the page
 
     const delta = event.deltaY * (DELTA_SCALE[event.deltaMode] ?? 1);
@@ -1236,18 +1533,8 @@ function wireWheel() {
     accumulated += delta;
     if (Math.abs(accumulated) < WHEEL_STEP) return;
 
-    const forwards = accumulated > 0;
+    accumulated > 0 ? forward() : back();
     accumulated = 0;
-    // Moving to a node that has never been visited fetches its position, so
-    // ignore further wheeling until that lands rather than jumping twice from
-    // a position that is already stale.
-    if (busy) return;
-    busy = true;
-    try {
-      await (forwards ? forward() : back());
-    } finally {
-      busy = false;
-    }
   }, { passive: false });
 }
 

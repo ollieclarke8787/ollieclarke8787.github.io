@@ -176,7 +176,7 @@
       <button id="toggle-editor" title="Set up any position, then continue from it">Board editor</button>
       <button id="back">&larr; Back</button>
       <button id="forward">Forward &rarr;</button>
-      <button id="promote" title="Move this line up one level">Promote variation</button>
+      <button id="promote" title="Take this line to the front of the branch it hangs off">Promote variation</button>
       <button id="make-main" title="Make this the principal line">Make main line</button>
       <button id="delete-branch">Delete from here</button>
     </div>
@@ -336,7 +336,12 @@
     <p>
       Click any move in the list to jump to it, use the left and right arrow
       keys, or <strong>scroll the wheel over the board</strong> &mdash; up steps
-      back, down steps forward. The move you are on is highlighted, and the list
+      back, down steps forward. The pieces travel to their new squares as you
+      go &mdash; straight there, however far across the tree you jumped, with
+      pieces coming out of and going back to the hands they came from. Nothing
+      waits on an animation: scroll faster than the pieces can travel and each
+      step picks them up wherever they have got to, so the board keeps up with
+      the wheel rather than trailing a queue of moves behind it. The move you are on is highlighted, and the list
       keeps it in view.
     </p>
 
@@ -347,10 +352,14 @@
       &mdash; for:
     </p>
     <ul>
-      <li><strong>Promote variation</strong> &mdash; move that line up one level
-        among its siblings.</li>
-      <li><strong>Make main line</strong> &mdash; make it the principal line,
-        demoting the rest by one and keeping their order.</li>
+      <li><strong>Promote variation</strong> &mdash; take that line to the front
+        of the branch it hangs off, so it becomes the line at that level and the
+        others fall in behind it in the order they were. One level only: a line
+        two variations deep comes up one, and stays a variation of whatever the
+        outer one is a variation of. Promote it again to bring it up another.</li>
+      <li><strong>Make main line</strong> &mdash; make it the principal line all
+        the way to the top, demoting the rest by one and keeping their
+        order.</li>
       <li><strong>Delete from here</strong> &mdash; remove the line from that
         move onward.</li>
     </ul>
@@ -358,6 +367,12 @@
       All three act on the point where the line diverges rather than on the move
       you happen to be looking at, so promoting from deep inside a variation
       does what you mean.
+    </p>
+    <p>
+      <strong>When the position you are on has more than one recorded reply</strong>,
+      every one of them is ringed in the list, and the ones that are not the main
+      line are marked with an arrow. The indentation says the same thing, but
+      only if you are reading the shape of the list rather than the board.
     </p>
 
     <h3>Position</h3>
@@ -445,7 +460,7 @@
     <table class="help-table">
       <tr><td><strong>Board</strong></td><td>theme and a lightness slider</td></tr>
       <tr><td><strong>Pieces</strong></td><td>theme, a colour picker for each player, a lightness slider, and a reset</td></tr>
-      <tr><td><strong>&#9881;</strong></td><td>coordinates, how variations are laid out, whether pieces animate as they are booped, graduated or pushed off the board, and how fast</td></tr>
+      <tr><td><strong>&#9881;</strong></td><td>coordinates, how variations are laid out, whether pieces animate as they are booped, graduated, pushed off the board or stepped through, and how fast</td></tr>
     </table>
     <p>
       All of it is remembered between visits, in your browser. Drag the

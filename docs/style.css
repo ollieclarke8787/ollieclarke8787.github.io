@@ -18,6 +18,7 @@
 
   --slide-ms: 200ms;
   --fade-ms: 320ms;
+  --travel-ms: 260ms;
 
   --ink: #16181d;
   --muted: #6b7280;
@@ -225,6 +226,17 @@ main {
 .piece.b .body { fill: var(--grey);   stroke: var(--grey-edge); }
 .piece.sliding { transition: transform var(--slide-ms) ease-out; }
 
+/* Crossing from one position to another - stepping through a line, or jumping
+   to a move somewhere else in it. The duration is set on the board rather than
+   here, because a run of steps asked for in quick succession shortens each one
+   to fit. */
+.piece.travelling {
+  transition: transform var(--travel-ms) ease-out, opacity var(--travel-ms) ease-out;
+}
+/* A piece on its way across passes over squares that come after it in the
+   grid, which would otherwise paint on top of it. */
+.square.lifted { z-index: 3; }
+
 /* A piece that leaves the board - graduated into a hand, or booped over an
    edge - is not there to animate once the next render has drawn the position
    without it. A copy of it is flown over the page instead and thrown away when
@@ -293,6 +305,18 @@ button:disabled:not(.square) { opacity: .4; cursor: default; }
 .notation .ply { padding: 1px 5px; border-radius: 5px; cursor: pointer; }
 .notation .ply:hover { background: var(--paper); }
 .notation .ply.current { background: var(--accent); color: #fff; }
+/* At a position with more than one recorded continuation, all of them are
+   marked, so which moves are on offer does not depend on reading the
+   indentation. The alternatives take an arrow as well - the main line is the
+   one without. */
+.notation .ply.choice {
+  background: rgba(47, 111, 176, .10);
+  box-shadow: inset 0 0 0 1.5px rgba(47, 111, 176, .5);
+}
+.notation .ply.choice:hover { background: rgba(47, 111, 176, .2); }
+.notation .ply.choice.alt::before {
+  content: "\25B8"; margin-right: 3px; font-weight: 700; color: var(--accent);
+}
 .notation .number { color: var(--muted); margin-right: 2px; }
 /* One variation per line, indented from the line it branches off, and indented
    again for each level of nesting - the nesting comes from these blocks being
