@@ -6,7 +6,7 @@
 <title>Boop analysis board</title>
 <link rel="stylesheet" href="style.css">
 </head>
-<body data-board-theme="blue" data-piece-theme="shapes" data-coords="edge" data-highlight="behind" data-moves="indented">
+<body data-board-theme="blue" data-piece-theme="shapes" data-coords="edge" data-moves="indented">
 
 <header>
   <h1>Boop</h1>
@@ -68,14 +68,8 @@
             <option value="inline">Inline, in brackets</option>
           </select>
         </label>
-        <label class="field">Square highlighting
-          <select id="highlight">
-            <option value="behind" selected>Behind the pieces</option>
-            <option value="front">In front of the pieces</option>
-          </select>
-        </label>
         <label class="field checkbox">
-          <input type="checkbox" id="animate" checked> Animate booped pieces
+          <input type="checkbox" id="animate" checked> Animate moving pieces
         </label>
         <label class="field">Animation speed <span class="readout" id="speed-readout"></span>
           <input type="range" id="speed" min="0.25" max="3" step="0.25" value="1">
@@ -451,7 +445,7 @@
     <table class="help-table">
       <tr><td><strong>Board</strong></td><td>theme and a lightness slider</td></tr>
       <tr><td><strong>Pieces</strong></td><td>theme, a colour picker for each player, a lightness slider, and a reset</td></tr>
-      <tr><td><strong>&#9881;</strong></td><td>coordinates, how variations are laid out, whether square highlighting sits behind or in front of the pieces, and the booping animation and its speed</td></tr>
+      <tr><td><strong>&#9881;</strong></td><td>coordinates, how variations are laid out, whether pieces animate as they are booped, graduated or pushed off the board, and how fast</td></tr>
     </table>
     <p>
       All of it is remembered between visits, in your browser. Drag the
@@ -482,6 +476,8 @@
   <li data-action="make-main">Make main line</li>
   <li data-action="delete">Delete from here</li>
 </ul>
+
+<div class="ghosts" id="ghosts" aria-hidden="true"></div>
 
 <script src="rules.js"></script>
 <script src="notation.js"></script>

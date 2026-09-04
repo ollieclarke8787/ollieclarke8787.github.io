@@ -17,6 +17,7 @@
   --grey-edge: hsl(215 13% 16%);
 
   --slide-ms: 200ms;
+  --fade-ms: 320ms;
 
   --ink: #16181d;
   --muted: #6b7280;
@@ -177,40 +178,15 @@ main {
  * `last` won, the one square that most needs to show which line you are about
  * to take would be the one square that did not.
  *
- * Two ways of drawing them. Behind (the default): inset rings on the square
- * itself, which paint above its background but below anything inside it, so a
- * piece keeps exactly the colour it was given. In front: an overlay above the
- * piece, more visible on a busy board but it tints what it covers.
+ * They are inset rings on the square itself, which paint above its background
+ * but below anything inside it, so a piece keeps exactly the colour it was
+ * given.
  */
-.square::after {
-  content: ""; position: absolute; inset: 0; border-radius: 5px;
-  pointer-events: none; z-index: 2; display: none;
-}
-.square.source { cursor: pointer; }
-
-/* --- behind --- */
-[data-highlight="behind"] .square.source { box-shadow: inset 0 0 0 2px var(--mark); }
-[data-highlight="behind"] .square.playable:hover { box-shadow: inset 0 0 0 3px var(--mark); }
-[data-highlight="behind"] .square.last { box-shadow: inset 0 0 0 3px var(--accent); }
-[data-highlight="behind"] .square.selected { box-shadow: inset 0 0 0 4px var(--accent); }
-[data-highlight="behind"] .square.highlight { box-shadow: inset 0 0 0 4px #f0b429; }
-
-/* --- in front --- */
-[data-highlight="front"] .square.source::after {
-  display: block; box-shadow: inset 0 0 0 2px var(--mark);
-}
-[data-highlight="front"] .square.playable:hover::after {
-  display: block; box-shadow: inset 0 0 0 3px var(--mark);
-}
-[data-highlight="front"] .square.last::after {
-  display: block; box-shadow: inset 0 0 0 3px var(--accent);
-}
-[data-highlight="front"] .square.selected::after {
-  display: block; box-shadow: inset 0 0 0 4px var(--accent);
-}
-[data-highlight="front"] .square.highlight::after {
-  display: block; box-shadow: inset 0 0 0 4px #f0b429; background: rgba(240, 180, 41, .38);
-}
+.square.source { cursor: pointer; box-shadow: inset 0 0 0 2px var(--mark); }
+.square.playable:hover { box-shadow: inset 0 0 0 3px var(--mark); }
+.square.last { box-shadow: inset 0 0 0 3px var(--accent); }
+.square.selected { box-shadow: inset 0 0 0 4px var(--accent); }
+.square.highlight { box-shadow: inset 0 0 0 4px #f0b429; }
 
 /* A dot marks where the cat may go on an empty-hand turn. It sits under the
    piece, so the square the piece came from still reads as occupied. */
@@ -248,6 +224,24 @@ main {
 .piece.a .body { fill: var(--orange); stroke: var(--orange-edge); }
 .piece.b .body { fill: var(--grey);   stroke: var(--grey-edge); }
 .piece.sliding { transition: transform var(--slide-ms) ease-out; }
+
+/* A piece that leaves the board - graduated into a hand, or booped over an
+   edge - is not there to animate once the next render has drawn the position
+   without it. A copy of it is flown over the page instead and thrown away when
+   it lands. The layer sits at the document's origin so a ghost can be placed
+   in page coordinates, and under the header and the menus, which a piece on
+   its way out has no business covering. */
+.ghosts { position: absolute; left: 0; top: 0; z-index: 20; pointer-events: none; }
+.ghost {
+  position: absolute; display: grid; place-items: center; pointer-events: none;
+}
+/* The travel itself is set from JavaScript, which is the only place that knows
+   where a piece is headed; the timing lives here so the speed setting reaches
+   it the same way it reaches a boop. */
+.ghost.leaving {
+  transition: transform var(--fade-ms) ease-out, opacity var(--fade-ms) ease-out;
+  opacity: 0;
+}
 
 [data-piece-theme="shapes"] .piece.kit svg { width: 62%; height: 62%; }
 [data-piece-theme="solid"]   .piece .body { stroke: none; }

@@ -120,6 +120,8 @@ const SHAPES = {
   cat: '<circle class="body" cx="50" cy="50" r="42"/>',
 };
 
+const pieceCell = (owner, kind) => (kind === "cat" ? owner.toUpperCase() : owner);
+
 function pieceMarkup(cell) {
   const owner = cell.toLowerCase() === "a" ? "a" : "b";
   const kind = cell === cell.toLowerCase() ? "kit" : "cat";
@@ -161,42 +163,62 @@ function buildBoard() {
 
 const squareAt = (name) => document.querySelector(`.square[data-name="${name}"]`);
 
-/* Which piece slid where, comparing two boards.
+const onBoard = (row, column) => row >= 0 && row < 6 && column >= 0 && column < 6;
+
+/* What a boop did to the pieces around the placement, comparing two boards.
  *
  * A boop pushes a neighbour of the placement one square directly away, so a
- * piece that vanished from X and appeared at X + direction moved there. Only
- * squares adjacent to the placement can be sources, which keeps this
- * unambiguous. */
-function slides(before, after, placedAt) {
-  if (!placedAt) return [];
+ * piece that vanished from X and appeared at X + direction slid there, and one
+ * that vanished from X with X + direction off the board was pushed over the
+ * edge and back into its owner's hand. Only squares adjacent to the placement
+ * can be sources, which keeps this unambiguous.
+ *
+ * `removed` is the square an empty-hand turn graduated to make its placement
+ * with. That piece left too, and it can sit next to where the cat landed, so
+ * it is skipped rather than read as a piece the boop moved. */
+function boops(before, after, placedAt, removed) {
+  const slid = [], fell = [];
+  if (!placedAt) return { slid, fell };
   const [pr, pc] = placedAt;
-  const moved = [];
   for (const dr of [-1, 0, 1]) {
     for (const dc of [-1, 0, 1]) {
       if (!dr && !dc) continue;
       const fromRow = pr + dr, fromColumn = pc + dc;
-      const toRow = fromRow + dr, toColumn = fromColumn + dc;
-      if (fromRow < 0 || fromRow > 5 || fromColumn < 0 || fromColumn > 5) continue;
-      if (toRow < 0 || toRow > 5 || toColumn < 0 || toColumn > 5) continue;
+      if (!onBoard(fromRow, fromColumn)) continue;
+      if (removed && removed[0] === fromRow && removed[1] === fromColumn) continue;
       const piece = before[fromRow][fromColumn];
-      if (piece === "." ) continue;
-      if (after[fromRow][fromColumn] === "." && after[toRow][toColumn] === piece) {
-        moved.push({ to: [toRow, toColumn], dr, dc });
-      }
+      if (piece === "." || after[fromRow][fromColumn] !== ".") continue;
+      const toRow = fromRow + dr, toColumn = fromColumn + dc;
+      if (!onBoard(toRow, toColumn)) fell.push({ from: [fromRow, fromColumn], dr, dc, piece });
+      else if (after[toRow][toColumn] === piece) slid.push({ to: [toRow, toColumn], dr, dc });
     }
   }
-  return moved;
+  return { slid, fell };
+}
+
+/* One setting drives every animation, so they all divide their own natural
+   length by it and stay in proportion to each other. */
+function animationSpeed() {
+  return Number(document.getElementById("speed").value) || 1;
 }
 
 function slideDuration() {
-  const speed = Number(document.getElementById("speed").value) || 1;
-  return Math.round(200 / speed);
+  return Math.round(200 / animationSpeed());
 }
+
+/* Leaving the board covers more ground than sliding one square does, and it is
+ * the last the piece is seen, so it is given longer. */
+function fadeDuration() {
+  return Math.round(320 / animationSpeed());
+}
+
+const squareStep = () =>
+  document.querySelector(".square").getBoundingClientRect().width + 3;
 
 function animateSlides(moved) {
   if (!moved.length) return;
   const duration = slideDuration();
-  const step = document.querySelector(".square").getBoundingClientRect().width + 3;
+  const step = squareStep();
   for (const { to, dr, dc } of moved) {
     const square = document.querySelector(
       `.square[data-row="${to[0]}"][data-column="${to[1]}"]`);
@@ -215,7 +237,79 @@ function animateSlides(moved) {
   }
 }
 
+/* ---------------- pieces leaving the board ---------------- */
+
+/* A piece that leaves the board - graduated into a hand, or booped over an
+ * edge - is already gone from the position the board has just drawn, so there
+ * is nothing left in its square to animate. A copy of it is laid over the page
+ * where it stood, sent on its way, and dropped when it gets there.
+ *
+ * Page coordinates rather than the square's own: the layer holding the copies
+ * sits at the document origin, and a graduated piece is headed somewhere the
+ * board does not reach. */
+function ghost(square, cell) {
+  const box = square.getBoundingClientRect();
+  const node = document.createElement("div");
+  node.className = "ghost";
+  node.style.left = `${window.scrollX + box.left}px`;
+  node.style.top = `${window.scrollY + box.top}px`;
+  node.style.width = `${box.width}px`;
+  node.style.height = `${box.height}px`;
+  node.innerHTML = pieceMarkup(cell);
+  document.getElementById("ghosts").appendChild(node);
+  return node;
+}
+
+function sendOff(node, transform, duration) {
+  // The starting state has to be committed before the transition is switched
+  // on, or the browser is free to collapse the two into no movement at all.
+  void node.offsetWidth;
+  node.classList.add("leaving");
+  node.style.transform = transform;
+  setTimeout(() => node.remove(), duration + 80);
+}
+
+/* Anything still in flight belongs to the position that was on the board a
+ * moment ago, so a new one clears it rather than letting the two overlap. */
+function clearGhosts() {
+  document.getElementById("ghosts").replaceChildren();
+}
+
+/* Booped over the edge: out the way it was pushed, past the frame, fading. */
+function animateFalls(fell) {
+  if (!fell.length) return;
+  const duration = fadeDuration();
+  const step = squareStep();
+  for (const { from, dr, dc, piece } of fell) {
+    const square = document.querySelector(
+      `.square[data-row="${from[0]}"][data-column="${from[1]}"]`);
+    if (!square) continue;
+    sendOff(ghost(square, piece),
+      `translate(${dc * step * 1.4}px, ${dr * step * 1.4}px) scale(.75)`, duration);
+  }
+}
+
+/* Graduated: the three pieces of the line head for the hand they are going
+ * into, shrinking towards the size they are drawn at there. Which hand they
+ * fly to is the whole point - it is what says whose the line was - so they go
+ * there rather than in some direction of their own. */
+function animateCollection({ owner, squares }) {
+  const hand = document.getElementById(`hand-${owner}`);
+  if (!hand || !squares.length) return;
+  const duration = fadeDuration();
+  const target = hand.getBoundingClientRect();
+  for (const { name, cell } of squares) {
+    const square = squareAt(name);
+    if (!square) continue;
+    const box = square.getBoundingClientRect();
+    const dx = target.left + target.width / 2 - (box.left + box.width / 2);
+    const dy = target.top + target.height / 2 - (box.top + box.height / 2);
+    sendOff(ghost(square, cell), `translate(${dx}px, ${dy}px) scale(.35)`, duration);
+  }
+}
+
 function render(options = {}) {
+  clearGhosts();
   if (app.editor) return renderEditorBoard();
   const node = app.current;
   // While a graduation choice is open the board shows the position after the
@@ -259,7 +353,11 @@ function render(options = {}) {
   document.getElementById("promote").disabled = !canPromote(node);
   document.getElementById("make-main").disabled = !canMakeMain(node);
 
-  if (options.slid && app.animate) animateSlides(options.slid);
+  if (app.animate) {
+    if (options.slid) animateSlides(options.slid);
+    if (options.fell) animateFalls(options.fell);
+    if (options.collected) animateCollection(options.collected);
+  }
 }
 
 /* With every piece on the board a turn is "graduate one of your own and place
@@ -387,21 +485,31 @@ function closePicker() {
 
 async function playMove(move) {
   showError("");
-  const before = (app.pending ? app.pending.state : app.current.state).board;
+  const state = app.pending ? app.pending.state : app.current.state;
+  const before = state.board;
+  const mover = state.turn;
   try {
     const result = await api("/api/play", {
-      fen: app.pending ? app.pending.state.fen : app.current.fen,
+      fen: state.fen,
       move: move.move,
     });
     const placedAt = squareToIndices(move.square);
-    const slid = slides(before, result.board, placedAt);
+    const removed = squareToIndices(move.source);
+    const moved = boops(before, result.board, placedAt, removed);
 
     if (result.mode === "trip" && !result.isOver) {
       app.pending = { node: app.current, token: move.token, state: result };
-      render({ slid });
+      render(moved);
       return;
     }
-    advance(result, result.token, slid);
+    // A single completed line graduates inside the same call as the placement,
+    // so this is the usual way a triple comes off the board - the picker only
+    // appears when there are two to choose between.
+    const settled = { placedAt, placedCell: pieceCell(mover, move.piece), removed, ...moved };
+    const squares = graduatedSquares(result.token).map((name) =>
+      ({ name, cell: settledCell(before, name, settled) }));
+    advance(result, result.token,
+      { ...moved, collected: squares.length ? { owner: mover, squares } : null });
   } catch (error) {
     showError(error.message);
   }
@@ -411,20 +519,53 @@ function squareToIndices(name) {
   return name ? [6 - Number(name[1]), FILES.indexOf(name[0])] : null;
 }
 
+function cellAt(board, name) {
+  const [row, column] = squareToIndices(name);
+  return board[row][column];
+}
+
+/* A line that graduates on its own is settled by the server inside the same
+ * call as the placement, and the only thing sent back saying which line it was
+ * is the token: `Kc1=a1b1c1`, or `a1>Ce3=c1d2e3`. */
+function graduatedSquares(token) {
+  const match = token && token.match(/=((?:[a-f][1-6])+)/);
+  return match ? match[1].match(/[a-f][1-6]/g) : [];
+}
+
+/* What stood on a square once the placement and its boops had settled, which
+ * is the board the graduating line was standing on. Neither board the server
+ * sends shows it: one is from before the move, the other from after the line
+ * came off. */
+function settledCell(before, name, { placedAt, placedCell, removed, slid }) {
+  const [row, column] = squareToIndices(name);
+  const here = (position) => position && position[0] === row && position[1] === column;
+  if (here(placedAt)) return placedCell;
+  if (here(removed)) return ".";
+  const arrival = slid.find(({ to }) => here(to));
+  if (arrival) return before[row - arrival.dr][column - arrival.dc];
+  return before[row][column];
+}
+
 async function chooseGraduation(option) {
   const pending = app.pending;
+  // Read off the board the graduation is leaving, since the next render draws
+  // the one it left behind.
+  const collected = {
+    owner: pending.state.turn,
+    squares: option.squares.map((name) => ({ name, cell: cellAt(pending.state.board, name) })),
+  };
   try {
     const result = await api("/api/play", { fen: pending.state.fen, move: option.move });
     const token = pending.token + result.graduationSuffix + (result.isOver ? "#" : "");
     app.current = pending.node;
     app.pending = null;
-    advance(result, token, []);
+    advance(result, token, { collected });
   } catch (error) {
     showError(error.message);
   }
 }
 
-function advance(state, token, slid) {
+function advance(state, token, animation) {
   const parent = app.current;
   const existing = parent.children.find((child) => child.token === token);
   if (existing) {
@@ -437,7 +578,7 @@ function advance(state, token, slid) {
   }
   app.pending = null;
   app.removal = null;
-  render({ slid });
+  render(animation);
 }
 
 /* ---------------- graduation choices ---------------- */
@@ -1261,7 +1402,6 @@ function main() {
   remember("board-theme", (value) => { document.body.dataset.boardTheme = value; });
   remember("piece-theme", (value) => { document.body.dataset.pieceTheme = value; });
   remember("coords", (value) => { document.body.dataset.coords = value; });
-  remember("highlight", (value) => { document.body.dataset.highlight = value; });
   remember("moves-format", (value) => {
     document.body.dataset.moves = value;
     if (app.root) renderNotation();
@@ -1273,6 +1413,7 @@ function main() {
   remember("colour-b", applyPieceColours);
   remember("speed", (value) => {
     document.documentElement.style.setProperty("--slide-ms", `${slideDuration()}ms`);
+    document.documentElement.style.setProperty("--fade-ms", `${fadeDuration()}ms`);
     document.getElementById("speed-readout").textContent = `${Number(value).toFixed(2)}x`;
   });
 
